@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------------------
+# THE config file. Every tunable in the project lives here.
+# Read via `mathvlm.config.load_config()`. No magic numbers in module bodies.
+# ---------------------------------------------------------------------------
+
+seed: 1234 # master seed; per-sample seeds are spawned from this
+
+paths:
+  data_dir: data # symlink -> ~/vlm_data (ext4)
+  outputs_dir: outputs # symlink -> ~/vlm_outputs (ext4)
+  hf_home: ~/.cache/huggingface # ext4; keep the model cache off the 9p mount
+
+model:
+  id: Qwen/Qwen3.5-2B # post-trained multimodal; NOT the -Base variant
+  dtype: bfloat16
+  device_map: cuda:0
+  attn_implementation: sdpa # flash_attention_2 is a Phase 2 experiment
+  enable_thinking: false # MUST stay false: a reasoning preamble breaks JSON parsing
+  max_new_tokens: 1024
+  do_sample: false # greedy: baseline must be reproducible
+
+# Diagram schema constants. Changing these is a schema change -> tell the user.
+schema:
+  grid_min: 0
+  grid_max: 100
+  unnamed_prefix: _P
+
+render:
+  dpi: 110
+  figure_width_in: 5.0 # diagram panel
+  question_width_in: 5.0
+  usetex: false # mathtext only in Phase 1; true would require a texlive install
+  mathtext_fontset: dejavusans # randomized by augment.py over `fontsets`
+  fontsets: [dejavusans, dejavuserif, cm, stix, stixsans]
+  line_width: 1.6
+  line_width_jitter: [1.0, 2.4]
+  point_marker_size: 4.0
+  label_fontsize: 11
+  question_fontsize: 11
+  background: white
+
+augment:
+  enabled: true
+  rotation_deg: 4.0 # README.md design invariant 6: small, and GT is untouched
+  scale_range: [0.85, 1.15]
+  blur_sigma_range: [0.0, 1.1]
+  gaussian_noise_std: [0.0, 0.035]
+  jpeg_quality_range: [55, 95]
+  paper_texture_strength: [0.0, 0.25]
+  brightness_range: [0.85, 1.12]
+  contrast_range: [0.85, 1.15]
+
+generate:
+  # relative weights over scene families
+  families:
+    triangle_cevian: 1.0 # altitude / median / angle bisector
+    circle_incircle: 1.0
+    circle_circumcircle: 1.0
+    quadrilateral_diagonals: 1.0
+    tangent_line: 1.0
+  no_diagram_fraction: 0.15 # share of samples with "diagram": null
+  # geometric validity thresholds, enforced at generation time
+  min_angle_deg: 25.0
+  min_side_len: 18.0
+  min_point_separation: 6.0
+  margin: 8.0 # keep points this far inside the grid
+  max_rejection_attempts: 200
+
+eval:
+  # similarity alignment for the geometry metric: translation + uniform scale only.
+  # No rotation/reflection — image orientation pins those, and allowing them would
+  # forgive genuinely flipped diagrams.
+  allow_rotation: false
+  allow_reflection: false
+  unnamed_match_max_dist: 25.0 # grid units; beyond this a _P pair is not a match
+  side_by_side_limit: 50 # how many comparison images to write per run

@@ -1,0 +1,22 @@
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# --- uv / venv ---
+.venv/
+
+# --- data & artifacts live on ext4 via symlink; never commit them ---
+/data
+/outputs
+
+# --- local env overrides ---
+.env.local
+
+# --- editors / os ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
