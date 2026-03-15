@@ -55,8 +55,10 @@ def check_torch() -> bool:
     if EXPECTED_ARCH in arch_list:
         print(f"{OK} {EXPECTED_ARCH} kernels present")
     else:
-        print(f"{BAD} {EXPECTED_ARCH} missing from arch_list -> wrong wheel, expect "
-              f"'no kernel image is available' at runtime")
+        print(
+            f"{BAD} {EXPECTED_ARCH} missing from arch_list -> wrong wheel, expect "
+            f"'no kernel image is available' at runtime"
+        )
         ok = False
 
     try:
@@ -117,9 +119,13 @@ def make_probe_image():
 
     ax_q.axis("off")
     ax_q.text(
-        0.02, 0.6,
+        0.02,
+        0.6,
         "In triangle $ABC$, $AB = 5$ and $\\angle ACB = 90^\\circ$.\nFind the length of $BC$.",
-        fontsize=CFG.render.question_fontsize, va="center", ha="left", wrap=True,
+        fontsize=CFG.render.question_fontsize,
+        va="center",
+        ha="left",
+        wrap=True,
     )
 
     ax_d.set_aspect("equal")
@@ -131,8 +137,13 @@ def make_probe_image():
         ax_d.plot(*zip(pts[p], pts[q], strict=True), color="black", lw=CFG.render.line_width)
     for name, (x, y) in pts.items():
         ax_d.plot([x], [y], "o", color="black", ms=CFG.render.point_marker_size)
-        ax_d.annotate(name, (x, y), textcoords="offset points", xytext=(6, -8),
-                      fontsize=CFG.render.label_fontsize)
+        ax_d.annotate(
+            name,
+            (x, y),
+            textcoords="offset points",
+            xytext=(6, -8),
+            fontsize=CFG.render.label_fontsize,
+        )
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
@@ -190,11 +201,13 @@ def check_model() -> bool:
         )
     gen_s = time.time() - t0
 
-    new_tokens = generated[0][inputs["input_ids"].shape[-1]:]
+    new_tokens = generated[0][inputs["input_ids"].shape[-1] :]
     text = processor.decode(new_tokens, skip_special_tokens=True)
     peak = torch.cuda.max_memory_allocated(0) / 1e9
-    print(f"{OK} generated {len(new_tokens)} tokens in {gen_s:.1f}s "
-          f"({len(new_tokens) / gen_s:.1f} tok/s) | peak VRAM {peak:.2f} GB")
+    print(
+        f"{OK} generated {len(new_tokens)} tokens in {gen_s:.1f}s "
+        f"({len(new_tokens) / gen_s:.1f} tok/s) | peak VRAM {peak:.2f} GB"
+    )
 
     print(f"\n--- raw model output (zero-shot, thinking={CFG.model.enable_thinking}) ---")
     print(text[:1500] or "<empty>")
