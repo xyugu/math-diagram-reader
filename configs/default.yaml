@@ -24,6 +24,11 @@ schema:
   grid_min: 0
   grid_max: 100
   unnamed_prefix: _P
+  # Tolerances for schema.consistency_issues() -- the *soft* geometric checks the
+  # synthetic generator asserts. They are not part of the schema's shape.
+  consistency_collinear_tol: 1.5 # grid units; integer rounding moves points <= ~0.71
+  consistency_angle_tol_deg: 6.0 # rounding on an 18-unit side shifts angles a few deg
+  consistency_length_tol: 2.0 # grid units, for equal_length
 
 render:
   dpi: 110

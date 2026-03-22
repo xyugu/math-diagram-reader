@@ -51,6 +51,9 @@ class SchemaConfig(_Base):
     grid_min: int
     grid_max: int
     unnamed_prefix: str
+    consistency_collinear_tol: float
+    consistency_angle_tol_deg: float
+    consistency_length_tol: float
 
 
 class RenderConfig(_Base):
