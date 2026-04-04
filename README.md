@@ -68,6 +68,7 @@ src/mathvlm/
   modeling.py             model + processor loading
   schema.py               FROZEN: pydantic models, validator, canonicalize()
   render.py               diagram JSON -> PNG; question-above-diagram page layout
+  fixtures.py             hand-drawn reference diagrams for renderer checks and tests
   augment.py              blur, noise, paper texture, rotation, scale
   generate/
     primitives.py         intersect, foot, bisector, incenter, circumcenter, tangent

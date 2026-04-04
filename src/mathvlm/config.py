@@ -60,14 +60,30 @@ class RenderConfig(_Base):
     dpi: int
     figure_width_in: float
     question_width_in: float
+    page_margin_in: float
+    text_diagram_gap_in: float
+    line_spacing: float
+    diagram_pad: float
     usetex: bool
     mathtext_fontset: str
     fontsets: list[str]
+    text_family: dict[str, str]
+    ink: str
+    inks: list[str]
     line_width: float
     line_width_jitter: tuple[float, float]
     point_marker_size: float
-    label_fontsize: int
-    question_fontsize: int
+    point_marker_size_jitter: tuple[float, float]
+    point_dot_prob: float
+    label_fontsize: float
+    label_fontsize_jitter: tuple[float, float]
+    label_italic_prob: float
+    label_offset_pt: float
+    question_fontsize: float
+    question_fontsize_jitter: tuple[float, float]
+    mark_size: float
+    mark_size_jitter: tuple[float, float]
+    angle_arc_prob: float
     background: str
 
 

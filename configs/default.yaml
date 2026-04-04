@@ -32,16 +32,38 @@ schema:
 
 render:
   dpi: 110
-  figure_width_in: 5.0 # diagram panel
-  question_width_in: 5.0
+  figure_width_in: 5.0 # diagram panel (square)
+  question_width_in: 5.0 # page width; the question text wraps to this
+  page_margin_in: 0.25
+  text_diagram_gap_in: 0.15
+  line_spacing: 1.3 # multiple of each line's measured height
+  diagram_pad: 8.0 # blank grid units around the 0-100 grid, room for outer labels
   usetex: false # mathtext only in Phase 1; true would require a texlive install
-  mathtext_fontset: dejavusans # randomized by augment.py over `fontsets`
+  # Fonts: matplotlib-bundled only, so the lockfile pins them (no system fonts).
+  mathtext_fontset: dejavusans # default style; sample_style() draws from `fontsets`
   fontsets: [dejavusans, dejavuserif, cm, stix, stixsans]
+  text_family: # plain-text font paired with each mathtext fontset
+    dejavusans: DejaVu Sans
+    dejavuserif: DejaVu Serif
+    cm: cmr10
+    stix: STIXGeneral
+    stixsans: DejaVu Sans
+  ink: "#000000"
+  inks: ["#000000", "#141414", "#1f2a44", "#2b2b2b"]
   line_width: 1.6
   line_width_jitter: [1.0, 2.4]
   point_marker_size: 4.0
+  point_marker_size_jitter: [2.5, 5.0]
+  point_dot_prob: 0.5 # dots on every point; circle centers always get one
   label_fontsize: 11
+  label_fontsize_jitter: [10.0, 13.0]
+  label_italic_prob: 0.6 # italic ($A$) vs upright point labels
+  label_offset_pt: 8.0
   question_fontsize: 11
+  question_fontsize_jitter: [10.0, 12.5]
+  mark_size: 4.5 # grid units: right-angle square side; scales ticks, arrows, arcs
+  mark_size_jitter: [3.5, 5.5]
+  angle_arc_prob: 0.75 # draw an arc under angle labels
   background: white
 
 augment:
