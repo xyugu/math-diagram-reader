@@ -83,6 +83,7 @@ src/mathvlm/
     run_eval.py           CLI
   infer.py                load model, generate, parse/repair JSON
 scripts/check_env.py      CUDA/bf16/model smoke test
+scripts/bench_generate.py generation speed benchmark (prefill, decode, batch size)
 tests/                    pytest; test_metrics.py is the most important file here
 data    -> ~/vlm_data     ext4 symlink (gitignored)
 outputs -> ~/vlm_outputs  ext4 symlink (gitignored)

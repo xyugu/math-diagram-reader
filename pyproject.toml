@@ -17,6 +17,9 @@ dependencies = [
     # (Qwen3VLVideoProcessor) which imports torchvision, even though we never pass video.
     "torchvision>=0.21",
     "accelerate>=1.15.0",
+    # Triton kernels for Qwen3.5's gated-delta-rule layers; without it transformers falls
+    # back to a slow reference PyTorch path. Pure Python, no compiler needed.
+    "flash-linear-attention>=0.6.0",
     # --- schema & config ---
     "pydantic>=2.11",
     "pydantic-settings>=2.7",
