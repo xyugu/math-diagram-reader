@@ -320,3 +320,26 @@ def test_cli_writes_fixture_images(tmp_path):
     assert {f"diagram_{n}.png" for n in DIAGRAMS} <= written
     assert {f"{n}.png" for n in PAGES} <= written
     assert {"contact_diagrams.png", "style_variants.png"} <= written
+
+
+def test_length_label_slides_away_from_a_point_at_the_midpoint():
+    obj = {
+        "points": {"A": [10, 50], "M": [50, 50], "B": [90, 50], "C": [50, 15]},
+        "segments": [["A", "B"], ["C", "M"]],
+        "labels": [{"on": ["A", "B"], "text": "7"}],
+    }
+    p = painter(obj)
+    (label,) = [t for t in p.ax.texts if t.get_text() == "$7$"]
+    x, _ = label.get_position()
+    assert abs(x - 50) > 5  # not on top of M (and M's label)
+    assert 10 < x < 90  # still alongside AB
+
+
+def test_length_label_stays_centered_when_uncrowded():
+    obj = {
+        "points": {"A": [10, 50], "B": [90, 50]},
+        "segments": [["A", "B"]],
+        "labels": [{"on": ["A", "B"], "text": "7"}],
+    }
+    (label,) = [t for t in painter(obj).ax.texts if t.get_text() == "$7$"]
+    assert label.get_position()[0] == pytest.approx(50)

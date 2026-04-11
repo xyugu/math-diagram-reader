@@ -512,13 +512,30 @@ class _Painter:
     def draw_segment_labels(self) -> None:
         fs = self.s.label_fontsize
         margin = 0.3 * self.s.mark_size
-        decorated = set(self._segment_decorations())
+        decos = self._segment_decorations()
+        decorated = set(decos)
+        # things a length label must not sit on: points (and their labels) and the tick
+        # or arrow marks drawn at decorated segments' midpoints
+        deco_centers = [
+            ((self.P[a][0] + self.P[b][0]) / 2, (self.P[a][1] + self.P[b][1]) / 2)
+            for (a, b), _ in decos.values()
+        ]
+        clear = 2.5 * self.s.mark_size
         for lb in self.d.labels:
             if not isinstance(lb, SegmentLabel):
                 continue
             text = f"${lb.text}$"
             pa, pb = self.P[lb.on[0]], self.P[lb.on[1]]
+            others = [p for n, p in self.P.items() if n not in lb.on]
+            own = canonical_segment(lb.on) in decorated
+            obstacles = others + [c for c in deco_centers if not own or c != (
+                (pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2)]  # fmt: skip
             mid = ((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2)
+            for t in (0.5, 0.35, 0.65, 0.25, 0.75):  # slide along the segment if crowded
+                cand = (pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t)
+                if all(math.dist(cand, o) >= clear for o in obstacles):
+                    mid = cand
+                    break
             u = _unit(*_sub(pb, pa))
             n = (0.0, -1.0) if u is None else (-u[1], u[0])
             away = _sub(mid, self.centroid)
