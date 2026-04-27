@@ -86,3 +86,7 @@ src = ["src", "tests", "scripts"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "NPY"]
 ignore = ["E501"]  # line length is handled by the formatter
+
+[tool.ruff.lint.per-file-ignores]
+# Geometry code names variables after points (O for a circle center, I for an incenter).
+"src/mathvlm/generate/*" = ["E741"]

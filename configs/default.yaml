@@ -90,8 +90,28 @@ generate:
   min_angle_deg: 25.0
   min_side_len: 18.0
   min_point_separation: 6.0
-  margin: 8.0 # keep points this far inside the grid
+  margin: 8.0 # the figure's bounding box is fitted to [margin, 100 - margin]
   max_rejection_attempts: 200
+  incidence_tol: 3.0 # a point this close to a segment/circle it is not on by construction -> reject
+  horizontal_base_prob: 0.4 # keep the construction's base horizontal; else rotate randomly
+  mark_prob: 0.85 # draw the mark for a construction (right angle, ticks, arcs, arrows)
+  unnamed_aux_prob: 0.2 # leave a constructed point unlabeled in the figure (named _P<n>)
+  prime_name_prob: 0.08 # name a constructed point after a vertex: A', A_1
+  label_schemes: # how point names are chosen
+    conventional: 0.55 # A, B, C...; feet H/D, midpoints M, centers O/I
+    random: 0.35 # random distinct letters
+    consecutive: 0.10 # a run starting at a random letter: P, Q, R, S
+  questions:
+    max_givens: 3
+    max_length_givens: 2 # more would over-determine a figure whose values are rounded
+    figure_label_prob: 0.6 # a given value is written on the figure
+    text_given_prob: 0.6 # ... and/or stated in the text (at least one of the two)
+    decimal_length_prob: 0.2 # lengths with one decimal instead of integers
+    length_scale: [6.0, 24.0] # the longest candidate length maps into this value range
+    variable_unknown_prob: 0.5 # unknown shown as x on the figure vs asked by name
+    algebraic_prob: 0.3 # x appears in an expression, e.g. 2x+1, equal to a marked partner
+    family_ask_prob: 0.3 # ask for area / perimeter / radius / a proof instead
+    two_part_prob: 0.15 # (a) ... (b) ...
 
 eval:
   # similarity alignment for the geometry metric: translation + uniform scale only.

@@ -99,6 +99,19 @@ class AugmentConfig(_Base):
     contrast_range: tuple[float, float]
 
 
+class QuestionConfig(_Base):
+    max_givens: int
+    max_length_givens: int
+    figure_label_prob: float
+    text_given_prob: float
+    decimal_length_prob: float
+    length_scale: tuple[float, float]
+    variable_unknown_prob: float
+    algebraic_prob: float
+    family_ask_prob: float
+    two_part_prob: float
+
+
 class GenerateConfig(_Base):
     families: dict[str, float]
     no_diagram_fraction: float
@@ -107,6 +120,13 @@ class GenerateConfig(_Base):
     min_point_separation: float
     margin: float
     max_rejection_attempts: int
+    incidence_tol: float
+    horizontal_base_prob: float
+    mark_prob: float
+    unnamed_aux_prob: float
+    prime_name_prob: float
+    label_schemes: dict[str, float]
+    questions: QuestionConfig
 
 
 class EvalConfig(_Base):
