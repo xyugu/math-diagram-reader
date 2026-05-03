@@ -66,14 +66,19 @@ render:
   angle_arc_prob: 0.75 # draw an arc under angle labels
   background: white
 
+# Image-level augmentation, applied after rendering (mathvlm.augment). The ground truth
+# is never touched. Style randomness (fonts, line widths, ink) lives in render.sample_style.
 augment:
-  enabled: true
+  enabled: true # false: every sample is a clean render
+  clean_prob: 0.2 # share of samples left untouched (real inputs include clean screenshots)
   rotation_deg: 4.0 # README.md design invariant 6: small, and GT is untouched
   scale_range: [0.85, 1.15]
   blur_sigma_range: [0.0, 1.1]
   gaussian_noise_std: [0.0, 0.035]
   jpeg_quality_range: [55, 95]
-  paper_texture_strength: [0.0, 0.25]
+  jpeg_prob: 0.6 # otherwise saved losslessly
+  paper_texture_strength: [0.0, 0.25] # depth of uneven shading and grain
+  paper_tints: [[255, 255, 255], [250, 247, 240], [245, 240, 228], [238, 238, 234]]
   brightness_range: [0.85, 1.12]
   contrast_range: [0.85, 1.15]
 

@@ -4,16 +4,19 @@
 
 Writes, under ``<data_dir>/synth/<split>/`` (ext4 via the ``data`` symlink):
 
-    <id>.png        the rendered question page
+    <id>.png        the rendered, then augmented, question page
     <id>.json       the ground truth, a schema-valid {"text", "diagram"} object
-    manifest.jsonl  one line per sample: id, family, kind, seeds, style, question meta
+    manifest.jsonl  one line per sample: id, family, kind, seeds, style, augmentation
+                    parameters, question meta
 
 and a contact sheet of the first samples to ``<outputs_dir>/generate/``.
 
 Determinism (design invariant 4): sample ``index`` depends only on (master seed, split,
 index), never on what else is generated, how many workers run, or in what order. Its
-three concerns draw from independent RNG streams spawned from the sample seed (scene,
-text, style), so editing the question templates does not move the geometry. The
+four concerns draw from independent RNG streams spawned from the sample seed (scene,
+text, style, augmentation), so editing the question templates does not move the
+geometry. Child streams are numbered in spawn order, so adding a stream at the end
+leaves the earlier ones, and every existing sample, unchanged. The
 ground-truth JSON is reproducible across machines with the same pinned dependencies;
 in principle a last-bit difference in a platform's trig functions could flip an integer
 rounding, though rejection sampling makes that vanishingly rare.
@@ -32,6 +35,9 @@ from pathlib import Path
 
 import numpy as np
 
+from mathvlm.augment import AugmentParams
+from mathvlm.augment import apply as apply_augment
+from mathvlm.augment import sample_params as sample_augment
 from mathvlm.config import get_config, sample_seed
 from mathvlm.generate.questions import compose, text_only_question
 from mathvlm.generate.scenes import BUILDERS, Namer, chance, to_grid, validate_scene, wpick
@@ -55,6 +61,7 @@ class Sample:
     kind: str
     transcription: Transcription
     style: RenderStyle
+    augment: AugmentParams
     meta: dict
 
     def manifest_row(self) -> dict:
@@ -68,19 +75,25 @@ class Sample:
             "image": f"{self.id}.png",
             "gt": f"{self.id}.json",
             "style": asdict(self.style),
+            "augment": self.augment.to_dict(),
             **self.meta,
         }
 
+    def image(self):
+        """The training image: the rendered page with this sample's augmentation."""
+        return apply_augment(render_page(self.transcription, self.style).image, self.augment)
+
 
 def _streams(seed: int) -> tuple[np.random.Generator, ...]:
-    return tuple(np.random.default_rng(s) for s in np.random.SeedSequence(seed).spawn(3))
+    """(scene, text, style, augmentation). Append new streams at the end only."""
+    return tuple(np.random.default_rng(s) for s in np.random.SeedSequence(seed).spawn(4))
 
 
 def make_sample(master_seed: int, split: str, index: int) -> Sample:
     """Generate one sample. Pure function of (master_seed, split, index)."""
     gcfg = get_config().generate
     seed = sample_seed(master_seed, split, index)
-    rng_scene, rng_text, rng_style = _streams(seed)
+    rng_scene, rng_text, rng_style, rng_aug = _streams(seed)
     sid = f"{split}_{index:06d}"
 
     if chance(rng_scene, gcfg.no_diagram_fraction):
@@ -88,7 +101,7 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
         report = validate_output({"text": text, "diagram": None})
         assert report.ok, report.errors
         return Sample(sid, split, index, seed, "no_diagram", kind, report.value,
-                      sample_style(rng_style), {"attempts": 1})  # fmt: skip
+                      sample_style(rng_style), sample_augment(rng_aug), {"attempts": 1})  # fmt: skip
 
     families = list(gcfg.families)
     family = wpick(rng_scene, families, [gcfg.families[f] for f in families])
@@ -125,7 +138,7 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
             **composed.meta,
         }
         return Sample(sid, split, index, seed, family, scene.kind, report.value,
-                      sample_style(rng_style), meta)  # fmt: skip
+                      sample_style(rng_style), sample_augment(rng_aug), meta)  # fmt: skip
     raise RuntimeError(
         f"{sid}: no valid {family} scene in {gcfg.max_rejection_attempts} attempts {dict(rejections)}"
     )
@@ -138,7 +151,7 @@ def _write(args: tuple[int, str, int, str, bool]) -> dict:
     gt = json.dumps(output_to_obj(s.transcription), indent=2, ensure_ascii=False) + "\n"
     (out_dir / f"{s.id}.json").write_text(gt)
     if images:
-        render_page(s.transcription, s.style).image.save(out_dir / f"{s.id}.png")
+        s.image().save(out_dir / f"{s.id}.png")
     row = s.manifest_row()
     row["target_chars"] = len(to_target_json(s.transcription))
     return row

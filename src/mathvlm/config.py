@@ -89,12 +89,15 @@ class RenderConfig(_Base):
 
 class AugmentConfig(_Base):
     enabled: bool
+    clean_prob: float
     rotation_deg: float
     scale_range: tuple[float, float]
     blur_sigma_range: tuple[float, float]
     gaussian_noise_std: tuple[float, float]
     jpeg_quality_range: tuple[int, int]
+    jpeg_prob: float
     paper_texture_strength: tuple[float, float]
+    paper_tints: list[tuple[int, int, int]]
     brightness_range: tuple[float, float]
     contrast_range: tuple[float, float]
 

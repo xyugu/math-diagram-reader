@@ -109,6 +109,7 @@ uv run pytest                # full test suite
 uv run ruff check . --fix    # lint
 uv run ruff format .         # format
 uv run python scripts/check_env.py
+uv run python -m mathvlm.augment --demo   # grids of escalating and random augmentation
 uv run python -m mathvlm.generate.build --split val --n 16 --seed 0
 uv run python -m mathvlm.eval.run_eval --split val
 ```
