@@ -77,6 +77,7 @@ src/mathvlm/
     build.py              CLI: emit N samples as image + ground-truth JSON
   eval/
     normalize.py          LaTeX text normalization
+    parse.py              raw output -> validated JSON (fence stripping, failure categories)
     matching.py           Hungarian alignment for unnamed "_P" points
     metrics.py            parse rate, NED, structure F1, geometry error
     report.py             per-example JSONL + side-by-side images + summary

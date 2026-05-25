@@ -121,8 +121,12 @@ generate:
 eval:
   # similarity alignment for the geometry metric: translation + uniform scale only.
   # No rotation/reflection — image orientation pins those, and allowing them would
-  # forgive genuinely flipped diagrams.
+  # forgive genuinely flipped diagrams. allow_reflection requires allow_rotation.
   allow_rotation: false
   allow_reflection: false
-  unnamed_match_max_dist: 25.0 # grid units; beyond this a _P pair is not a match
+  match_max_dist: 25.0 # grid units, after alignment; a farther point pair is not a match
+  align_inlier_dist: 5.0 # grid units; alignment fits these points and caps the cost of the rest
+  align_max_iters: 10 # match/refit rounds per starting transform (converges in 2-3)
+  align_hypotheses_kept: 8 # best two-point hypotheses refined, besides the global starts
+  align_max_hypotheses: 20000 # above this many, two-point hypotheses are subsampled
   side_by_side_limit: 50 # how many comparison images to write per run

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "default.yaml"
@@ -135,8 +135,18 @@ class GenerateConfig(_Base):
 class EvalConfig(_Base):
     allow_rotation: bool
     allow_reflection: bool
-    unnamed_match_max_dist: float
+    match_max_dist: float
+    align_inlier_dist: float
+    align_max_iters: int
+    align_hypotheses_kept: int
+    align_max_hypotheses: int
     side_by_side_limit: int
+
+    @model_validator(mode="after")
+    def _check(self) -> EvalConfig:
+        if self.allow_reflection and not self.allow_rotation:
+            raise ValueError("eval.allow_reflection requires eval.allow_rotation")
+        return self
 
 
 class Config(_Base):
