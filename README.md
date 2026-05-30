@@ -112,7 +112,8 @@ uv run ruff format .         # format
 uv run python scripts/check_env.py
 uv run python -m mathvlm.augment --demo   # grids of escalating and random augmentation
 uv run python -m mathvlm.generate.build --split val --n 16 --seed 0
-uv run python -m mathvlm.eval.run_eval --split val
+uv run python -m mathvlm.eval.run_eval --split val --oracle   # GT as predictions: must be perfect
+uv run python -m mathvlm.eval.run_eval --split val --pred <predictions.jsonl>
 ```
 
 Always use `uv run`; do not activate the venv manually or install into another environment.

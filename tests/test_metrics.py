@@ -686,3 +686,62 @@ def test_point_error_grows_with_coordinate_noise():
             errs += M.evaluate_example(gt, js(pred)).geometry.errors
         means.append(float(np.mean(errs)))
     assert means[0] == 0.0 < means[1] < means[2]
+
+
+def test_run_eval_cli(tmp_path):
+    from mathvlm.eval import run_eval
+    from mathvlm.generate.build import build
+
+    data = tmp_path / "data"
+    build("cli", 6, 21, data)
+    out = tmp_path / "oracle"
+    argv = ["--split", "cli", "--data", str(data)]
+    assert run_eval.main([*argv, "--oracle", "--out", str(out), "--sbs", "2"]) == 0
+    S = json.loads((out / "summary.json").read_text())
+    assert S["name"] == "oracle" and S["parse"]["schema_valid_rate"] == 1.0
+    assert S["text"]["ned"] == 0.0 and S["structure"]["geometric"]["all"]["f1"] == 1.0
+    rows = [json.loads(line) for line in (out / "per_example.jsonl").read_text().splitlines()]
+    assert len(rows) == 6 and (out / "summary.txt").exists()
+    assert len(list((out / "side_by_side").glob("*.png"))) == 2
+
+    # one perfect prediction, one garbage, four missing
+    pred = tmp_path / "zeroshot" / "predictions.jsonl"
+    pred.parent.mkdir()
+    pred.write_text(
+        json.dumps({"id": rows[0]["id"], "output": rows[0]["output"]}) + "\n"
+        + json.dumps({"id": rows[1]["id"], "output": "no idea", "truncated": False}) + "\n"
+    )  # fmt: skip
+    out2 = tmp_path / "pred_eval"
+    assert run_eval.main([*argv, "--pred", str(pred), "--out", str(out2), "--sbs", "0"]) == 0
+    S = json.loads((out2 / "summary.json").read_text())
+    assert S["name"] == "zeroshot"
+    assert S["parse"]["failures"] == {"missing": 4, "no_json": 1}
+    assert S["parse"]["json_parse_rate"] == pytest.approx(1 / 6)
+
+
+def test_load_predictions_rejects_bad_files(tmp_path):
+    from mathvlm.eval.run_eval import load_predictions
+
+    p = tmp_path / "p.jsonl"
+    p.write_text('{"id": "a", "output": "x"}\n{"id": "a", "output": "y"}\n')
+    with pytest.raises(ValueError, match="duplicate"):
+        load_predictions(p)
+    p.write_text('{"id": "a", "output": 5}\n')
+    with pytest.raises(ValueError, match="string"):
+        load_predictions(p)
+    p.write_text('{"id": "a", "output": null}\n\n')
+    assert load_predictions(p) == {"a": {"id": "a", "output": None}}
+
+
+def test_report_handles_failures_and_empty_runs():
+    from PIL import Image
+
+    from mathvlm.eval import report
+
+    page = Image.new("RGB", (300, 400), "white")
+    for raw in ('{"text": "$\\frac12$", "diagram": {"points": {}}}', "no idea", js(BASE)):
+        im = report.side_by_side(M.evaluate_example(tr(BASE), raw, id="x"), page)
+        assert im.width > 2 * page.width and im.height > page.height
+    assert report._visible("a\x0cb\nc") == "a\\x0cb\nc"
+    text = report.format_summary(M.summarize([]))
+    assert "0 samples" in text
