@@ -16,8 +16,9 @@ model:
   device_map: cuda:0
   attn_implementation: sdpa # flash_attention_2 is a Phase 2 experiment
   enable_thinking: false # MUST stay false: a reasoning preamble breaks JSON parsing
-  max_new_tokens: 1024
+  max_new_tokens: 1024 # synthetic targets are <= ~300 tokens
   do_sample: false # greedy: baseline must be reproducible
+  batch_size: 8 # inference; ~8x the throughput of batch 1 at ~6 GB (scripts/bench_generate.py)
 
 # Diagram schema constants. Changing these is a schema change -> tell the user.
 schema:

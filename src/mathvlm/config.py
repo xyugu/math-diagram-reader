@@ -45,6 +45,7 @@ class ModelConfig(_Base):
     enable_thinking: bool
     max_new_tokens: int
     do_sample: bool
+    batch_size: int
 
 
 class SchemaConfig(_Base):

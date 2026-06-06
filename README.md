@@ -29,10 +29,24 @@ All tunables live in `configs/default.yaml`.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| 1 | Env, schema, renderer, synthetic generator, eval harness, zero-shot baseline | in progress |
+| 1 | Env, schema, renderer, synthetic generator, eval harness, zero-shot baseline | done |
 | 2 | LoRA SFT on synthetic geometry + public math OCR data | not started |
 | 3 | Realism augmentation; eval on real textbook diagrams (e.g. PGDP5K) | not started |
 | 4 | Optional GRPO using eval metrics as rewards; export for local inference | not started |
+
+## Baseline
+
+Zero-shot `Qwen/Qwen3.5-2B` on the synthetic val split (200 samples, master seed 0, 177 with a
+diagram), greedy, batch 8. Every later phase is compared against this.
+
+| Metric | Zero-shot |
+|--------|-----------|
+| JSON parse rate (strict / with fence stripping) | 0.0% / 99.0% |
+| Schema valid rate | 97.5% |
+| Diagram detection accuracy | 10.5% (never predicts a diagram) |
+| Text NED, normalized | 0.142 |
+| Structure F1, strict / geometric | 0.000 / 0.000 |
+| Point error | n/a (no diagrams predicted) |
 
 ## Design invariants
 
@@ -113,7 +127,8 @@ uv run python scripts/check_env.py
 uv run python -m mathvlm.augment --demo   # grids of escalating and random augmentation
 uv run python -m mathvlm.generate.build --split val --n 16 --seed 0
 uv run python -m mathvlm.eval.run_eval --split val --oracle   # GT as predictions: must be perfect
-uv run python -m mathvlm.eval.run_eval --split val --pred <predictions.jsonl>
+uv run python -m mathvlm.infer --split val --name zeroshot      # raw outputs, batch 8, ~2 min
+uv run python -m mathvlm.eval.run_eval --split val --pred outputs/infer/val/zeroshot/predictions.jsonl
 ```
 
 Always use `uv run`; do not activate the venv manually or install into another environment.
