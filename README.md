@@ -102,6 +102,7 @@ scripts/bench_generate.py generation speed benchmark (prefill, decode, batch siz
 tests/                    pytest; test_metrics.py is the most important file here
 data    -> ~/vlm_data     ext4 symlink (gitignored)
 outputs -> ~/vlm_outputs  ext4 symlink (gitignored)
+.venv   -> ~/.venvs/vlm_project   ext4 symlink (gitignored)
 ```
 
 ## Environment
@@ -109,9 +110,12 @@ outputs -> ~/vlm_outputs  ext4 symlink (gitignored)
 - WSL2, Ubuntu 26.04. GPU: RTX 5070 Ti 16 GB, Blackwell **sm_120**, driver CUDA 13.4.
 - `torch` must come from the `pytorch-cu130` index declared in `pyproject.toml`; the default
   PyPI wheel is not guaranteed to ship sm_120 kernels. Verify with `torch.cuda.get_arch_list()`.
-- The repo is on `/mnt/e`, a 9p mount that is slow for many small files. Generated data and the
-  Hugging Face cache live on ext4 (the `data`/`outputs` symlinks and `HF_HOME`). Never write
-  datasets into the repo tree.
+- The repo is on `/mnt/e`, a 9p mount that is slow for many small files. Generated data, the
+  Hugging Face cache and the virtualenv live on ext4 (the `data`/`outputs` symlinks, `HF_HOME`,
+  and `.venv -> ~/.venvs/vlm_project`). Never write datasets into the repo tree. With the venv
+  on 9p, `import transformers` alone took ~50 s (it scans every installed package's metadata);
+  on ext4 it takes ~3 s. On a fresh clone, create the link before the first `uv sync`:
+  `mkdir -p ~/.venvs/vlm_project && ln -s ~/.venvs/vlm_project .venv`.
 - System RAM is 15 GB alongside 16 GB of VRAM. Pre-render datasets to disk; do not render
   matplotlib inside dataloader workers.
 

@@ -6,7 +6,9 @@ __pycache__/
 .ruff_cache/
 
 # --- uv / venv ---
-.venv/
+# a symlink to an ext4 directory (see README, Environment); no trailing slash so
+# the ignore rule matches a symlink as well as a directory
+.venv
 
 # --- data & artifacts live on ext4 via symlink; never commit them ---
 /data
@@ -20,3 +22,7 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# unsloth writes compiled trainer code to the working directory unless
+# UNSLOTH_COMPILE_LOCATION is set (the training script sets it)
+unsloth_compiled_cache/

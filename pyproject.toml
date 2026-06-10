@@ -82,6 +82,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests", "scripts"]
+extend-exclude = ["unsloth_compiled_cache"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "NPY"]
