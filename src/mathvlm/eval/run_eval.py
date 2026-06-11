@@ -29,22 +29,8 @@ from pathlib import Path
 from mathvlm.config import get_config
 from mathvlm.eval.metrics import ExampleResult, evaluate_example, summarize, summarize_by
 from mathvlm.eval.report import format_summary, write_json, write_jsonl, write_side_by_sides
-from mathvlm.schema import Transcription, to_target_json, validate_output_json
-
-
-def load_split(data_dir: Path) -> list[tuple[dict, Transcription]]:
-    """Manifest rows (in index order) with their validated ground truth."""
-    manifest = data_dir / "manifest.jsonl"
-    if not manifest.exists():
-        raise FileNotFoundError(f"{manifest} not found; generate the split first")
-    rows = [json.loads(line) for line in manifest.read_text().splitlines() if line.strip()]
-    out = []
-    for row in sorted(rows, key=lambda r: r["index"]):
-        report = validate_output_json((data_dir / row["gt"]).read_text())
-        if not report.ok:
-            raise ValueError(f"{row['id']}: ground truth is not schema-valid: {report.errors}")
-        out.append((row, report.value))
-    return out
+from mathvlm.schema import Transcription, to_target_json
+from mathvlm.splits import load_split, split_dir
 
 
 def load_predictions(path: Path) -> dict[str, dict]:
@@ -99,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="side-by-side images to write (0: none)")  # fmt: skip
     args = ap.parse_args(argv)
 
-    data = args.data or cfg.paths.resolved("data_dir") / "synth" / args.split
+    data = args.data or split_dir(args.split, cfg)
     split = load_split(data)
     if args.oracle:
         preds = {row["id"]: {"id": row["id"], "output": to_target_json(gt)} for row, gt in split}

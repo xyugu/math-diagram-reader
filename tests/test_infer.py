@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import json
 
-from mathvlm.infer import cut_at_stop, load_done, plan_batches, read_manifest
+from mathvlm.infer import cut_at_stop, load_done, plan_batches
+from mathvlm.splits import read_manifest
 
 
 def test_cut_at_stop():

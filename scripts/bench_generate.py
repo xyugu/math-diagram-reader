@@ -62,7 +62,7 @@ def main() -> int:
         return_dict=True,
         return_tensors="pt",
         enable_thinking=CFG.model.enable_thinking,
-        **batch_kwargs,
+        processor_kwargs=batch_kwargs,
     ).to(model.device)
     n_in = inputs["input_ids"].shape[-1]
     n_new = args.new_tokens

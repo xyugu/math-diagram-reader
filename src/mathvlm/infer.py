@@ -43,14 +43,7 @@ from PIL import Image
 
 from mathvlm.config import Config, apply_hf_env, get_config
 from mathvlm.prompts import ENABLE_THINKING, INSTRUCTION, build_messages
-
-
-def read_manifest(data_dir: Path) -> list[dict]:
-    manifest = data_dir / "manifest.jsonl"
-    if not manifest.exists():
-        raise FileNotFoundError(f"{manifest} not found; generate the split first")
-    rows = [json.loads(line) for line in manifest.read_text().splitlines() if line.strip()]
-    return sorted(rows, key=lambda r: r["index"])
+from mathvlm.splits import read_manifest, split_dir
 
 
 def plan_batches(rows: Sequence[dict], areas: dict[str, int], batch_size: int) -> list[list[dict]]:
@@ -138,7 +131,7 @@ def run(
                 add_generation_prompt=True,
                 return_dict=True,
                 return_tensors="pt",
-                padding=True,
+                processor_kwargs={"padding": True},
                 enable_thinking=ENABLE_THINKING,
             ).to(model.device)
             # left padding: every prompt must end at the last column
@@ -202,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--overwrite", action="store_true", help="discard earlier predictions")
     args = ap.parse_args(argv)
 
-    data = args.data or cfg.paths.resolved("data_dir") / "synth" / args.split
+    data = args.data or split_dir(args.split, cfg)
     out = args.out or cfg.paths.resolved("outputs_dir") / "infer" / args.split / args.name
     out.mkdir(parents=True, exist_ok=True)
     pred_path = out / "predictions.jsonl"
