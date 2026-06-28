@@ -150,6 +150,37 @@ class EvalConfig(_Base):
         return self
 
 
+class OverfitConfig(_Base):
+    samples: int
+    epochs: int
+    learning_rate: float
+    batch_size: int
+    grad_accum: int
+
+
+class TrainConfig(_Base):
+    lora_r: int
+    lora_alpha: int
+    lora_dropout: float
+    learning_rate: float
+    lr_scheduler: str
+    warmup: float
+    weight_decay: float
+    max_grad_norm: float
+    optim: str
+    epochs: float
+    batch_size: int
+    grad_accum: int
+    max_seq_length: int
+    eval_samples: int
+    eval_every: int
+    save_every: int
+    save_total_limit: int
+    logging_steps: int
+    dataloader_workers: int
+    overfit: OverfitConfig
+
+
 class Config(_Base):
     seed: int
     paths: PathsConfig
@@ -159,6 +190,7 @@ class Config(_Base):
     augment: AugmentConfig
     generate: GenerateConfig
     eval: EvalConfig
+    train: TrainConfig
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 

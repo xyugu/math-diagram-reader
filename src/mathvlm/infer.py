@@ -1,6 +1,7 @@
 """Run the model over a synthetic split and save its raw outputs for the eval.
 
     uv run python -m mathvlm.infer --split val --name zeroshot
+    uv run python -m mathvlm.infer --split val --adapter outputs/train/<run>/adapter
     uv run python -m mathvlm.eval.run_eval --split val --pred outputs/infer/val/zeroshot/predictions.jsonl
 
 Writes to ``<outputs_dir>/infer/<split>/<name>/``:
@@ -24,8 +25,13 @@ before the linear-attention layers. Greedy output can still differ in rare last-
 cases between batch sizes (bf16 kernels are not batch-invariant), so the batch size is
 recorded in run.json.
 
+Fine-tuned models: ``--adapter`` loads a LoRA adapter (train/run.py) onto the base model
+with peft and merges it into the weights, so a fine-tuned model runs through exactly the
+same code as the baseline (no unsloth at inference). The run name defaults to the
+training run's name (``<run>``, or ``<run>-checkpoint-N`` for a checkpoint).
+
 Resumable: ids already in predictions.jsonl are skipped, so an interrupted run picks up
-where it stopped. ``--overwrite`` starts over.
+where it stopped. Resuming with a different adapter is refused. ``--overwrite`` starts over.
 """
 
 from __future__ import annotations
@@ -81,7 +87,7 @@ def load_done(path: Path) -> dict[str, dict]:
 
 def _versions() -> dict[str, str | None]:
     out = {"python": platform.python_version()}
-    for pkg in ("torch", "transformers", "flash-linear-attention", "accelerate"):
+    for pkg in ("torch", "transformers", "flash-linear-attention", "accelerate", "peft"):
         try:
             out[pkg] = version(pkg)
         except PackageNotFoundError:
@@ -96,6 +102,7 @@ def run(
     out_path: Path,
     batch_size: int,
     max_new_tokens: int,
+    adapter: Path | None = None,
 ) -> dict:
     """Generate for every row not already in ``out_path``; append as batches finish."""
     import torch
@@ -106,6 +113,11 @@ def run(
     torch.manual_seed(cfg.seed)
     t_load = time.perf_counter()
     model, processor, loader = load_model_and_processor(cfg)
+    if adapter is not None:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, str(adapter)).merge_and_unload()
+        model.eval()
     load_s = time.perf_counter() - t_load
     tok = processor.tokenizer
     tok.padding_side = "left"
@@ -180,12 +192,23 @@ def _as_list(x) -> list:
     return list(x) if isinstance(x, list | tuple) else [x]
 
 
+def default_name(adapter: Path | None) -> str:
+    """``zeroshot`` for the base model; otherwise named after the training run."""
+    if adapter is None:
+        return "zeroshot"
+    if adapter.name.startswith("checkpoint-"):
+        return f"{adapter.parent.parent.name}-{adapter.name}"
+    return adapter.parent.name if adapter.name == "adapter" else adapter.name
+
+
 def main(argv: list[str] | None = None) -> int:
     cfg = get_config()
     apply_hf_env(cfg)
     ap = argparse.ArgumentParser(prog="python -m mathvlm.infer", description=__doc__.split("\n")[0])
     ap.add_argument("--split", required=True)
-    ap.add_argument("--name", default="zeroshot", help="run name (default: zeroshot)")
+    ap.add_argument("--adapter", type=Path, default=None, help="LoRA adapter dir (train/run.py)")
+    ap.add_argument("--name", default=None,
+                    help="run name (default: zeroshot, or the training run's name)")  # fmt: skip
     ap.add_argument("--data", type=Path, default=None, help="default: <data_dir>/synth/<split>")
     ap.add_argument("--out", type=Path, default=None,
                     help="default: <outputs_dir>/infer/<split>/<name>")  # fmt: skip
@@ -195,12 +218,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--overwrite", action="store_true", help="discard earlier predictions")
     args = ap.parse_args(argv)
 
+    adapter = args.adapter.resolve() if args.adapter else None
+    if adapter is not None and not (adapter / "adapter_config.json").exists():
+        ap.error(f"{adapter} has no adapter_config.json")
+    name = args.name or default_name(adapter)
     data = args.data or split_dir(args.split, cfg)
-    out = args.out or cfg.paths.resolved("outputs_dir") / "infer" / args.split / args.name
+    out = args.out or cfg.paths.resolved("outputs_dir") / "infer" / args.split / name
     out.mkdir(parents=True, exist_ok=True)
     pred_path = out / "predictions.jsonl"
     if args.overwrite and pred_path.exists():
         pred_path.unlink()
+    prev = out / "run.json"
+    if pred_path.exists() and prev.exists():
+        before = json.loads(prev.read_text()).get("adapter")
+        if before != (str(adapter) if adapter else None):
+            raise SystemExit(
+                f"{pred_path} came from adapter {before}; pass --overwrite or another --name"
+            )
 
     rows = read_manifest(data)[: args.limit]
     done = load_done(pred_path)
@@ -209,10 +243,11 @@ def main(argv: list[str] | None = None) -> int:
 
     stats = {}
     if todo:
-        stats = run(cfg, todo, data, pred_path, args.batch, args.max_new_tokens)
+        stats = run(cfg, todo, data, pred_path, args.batch, args.max_new_tokens, adapter)
     meta = {
         "split": args.split,
-        "name": args.name,
+        "name": name,
+        "adapter": str(adapter) if adapter else None,
         "data": str(data),
         "n": len(rows),
         "model": cfg.model.id,

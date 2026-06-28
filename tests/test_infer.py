@@ -42,3 +42,12 @@ def test_read_manifest_orders_by_index(tmp_path):
     rows = [{"id": "x2", "index": 2}, {"id": "x0", "index": 0}, {"id": "x1", "index": 1}]
     (tmp_path / "manifest.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     assert [r["id"] for r in read_manifest(tmp_path)] == ["x0", "x1", "x2"]
+
+
+def test_default_name_follows_the_training_run(tmp_path):
+    from mathvlm.infer import default_name
+
+    assert default_name(None) == "zeroshot"
+    assert default_name(tmp_path / "train" / "sft20k" / "adapter") == "sft20k"
+    ckpt = tmp_path / "train" / "sft20k" / "checkpoints" / "checkpoint-500"
+    assert default_name(ckpt) == "sft20k-checkpoint-500"

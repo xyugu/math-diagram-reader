@@ -131,3 +131,34 @@ eval:
   align_hypotheses_kept: 8 # best two-point hypotheses refined, besides the global starts
   align_max_hypotheses: 20000 # above this many, two-point hypotheses are subsampled
   side_by_side_limit: 50 # how many comparison images to write per run
+
+# Phase 2: LoRA fine-tuning (mathvlm.train.run, Unsloth + TRL)
+train:
+  # LoRA on every linear layer of the language model, all 24 layers (attention, gated
+  # delta-net projections, MLP): unsloth's automatic selection, checked at startup.
+  # The vision tower and its projector stay frozen.
+  lora_r: 16
+  lora_alpha: 16
+  lora_dropout: 0.0
+  learning_rate: 2.0e-4
+  lr_scheduler: cosine
+  warmup: 0.03 # fraction of total optimizer steps
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  optim: adamw_torch_fused
+  epochs: 1
+  batch_size: 8 # sequences per forward/backward pass
+  grad_accum: 2 # effective batch = batch_size * grad_accum
+  max_seq_length: 2048 # longest synthetic example is ~900 tokens; longer batches raise
+  eval_samples: 64 # first N val samples, for the periodic eval loss
+  eval_every: 250 # optimizer steps
+  save_every: 500 # optimizer steps; checkpoints hold the adapter and optimizer state
+  save_total_limit: 3
+  logging_steps: 10
+  dataloader_workers: 2 # collation (image preprocessing) runs in these
+  overfit: # --overfit: memorize a few samples to prove train -> save -> infer -> eval
+    samples: 32
+    epochs: 40
+    learning_rate: 3.0e-4
+    batch_size: 8
+    grad_accum: 1

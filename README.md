@@ -96,7 +96,11 @@ src/mathvlm/
     metrics.py            parse rate, NED, structure F1, geometry error
     report.py             per-example JSONL + side-by-side images + summary
     run_eval.py           CLI
-  infer.py                load model, generate, parse/repair JSON
+  infer.py                batched generation -> raw outputs (base model, or + a LoRA adapter)
+  splits.py               reading a generated split: manifest + validated ground truth
+  train/
+    data.py               training examples: the inference prompt + target, loss on the target
+    run.py                CLI: LoRA fine-tuning (Unsloth + TRL)
 scripts/check_env.py      CUDA/bf16/model smoke test
 scripts/bench_generate.py generation speed benchmark (prefill, decode, batch size)
 tests/                    pytest; test_metrics.py is the most important file here
@@ -133,6 +137,11 @@ uv run python -m mathvlm.generate.build --split val --n 16 --seed 0
 uv run python -m mathvlm.eval.run_eval --split val --oracle   # GT as predictions: must be perfect
 uv run python -m mathvlm.infer --split val --name zeroshot      # raw outputs, batch 8, ~2 min
 uv run python -m mathvlm.eval.run_eval --split val --pred outputs/infer/val/zeroshot/predictions.jsonl
+# Phase 2: prove train -> save -> infer -> eval on 32 memorized samples, then train for real
+uv run python -m mathvlm.generate.build --split smoke --n 32 --seed 0
+uv run python -m mathvlm.train.run --name overfit --train-split smoke --overfit   # ~4 min
+uv run python -m mathvlm.infer --split smoke --adapter outputs/train/overfit/adapter
+uv run python -m mathvlm.train.run --name <run> --train-split train
 ```
 
 Always use `uv run`; do not activate the venv manually or install into another environment.

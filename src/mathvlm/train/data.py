@@ -51,6 +51,21 @@ def load_records(data_dir: Path, limit: int | None = None) -> list[Record]:
     ]
 
 
+def as_dataset(records: Sequence[Record]):
+    """Records as a Hugging Face ``datasets.Dataset`` of plain rows (what TRL accepts);
+    the collator turns rows back into ``Record``. Imported lazily: ``datasets`` is in the
+    ``train`` extra."""
+    import datasets
+
+    return datasets.Dataset.from_list(
+        [{"id": r.id, "image": str(r.image), "target": r.target} for r in records]
+    )
+
+
+def _record(x: Record | dict) -> Record:
+    return x if isinstance(x, Record) else Record(x["id"], Path(x["image"]), x["target"])
+
+
 def _messages(image: Image.Image, target: str | None) -> list[dict]:
     msgs = build_messages(image, INSTRUCTION)
     if target is not None:
@@ -104,7 +119,8 @@ class Collator:
         self.gen_prompt = with_gen[len(without) :]
         self.gen_prompt_ids = tok.encode(self.gen_prompt, add_special_tokens=False)
 
-    def __call__(self, records: Sequence[Record]) -> dict[str, Any]:
+    def __call__(self, examples: Sequence[Record | dict]) -> dict[str, Any]:
+        records = [_record(x) for x in examples]
         images = [Image.open(r.image).convert("RGB") for r in records]
         batch = self.processor.apply_chat_template(
             [_messages(im, r.target) for im, r in zip(images, records, strict=True)],

@@ -111,3 +111,13 @@ def test_an_example_is_the_same_alone_and_in_a_batch(processor, records, batch):
 def test_overlong_batches_raise_instead_of_truncating(processor, records):
     with pytest.raises(ValueError, match="exceeds max_length"):
         Collator(processor, 64)(records[:2])
+
+
+def test_dataset_rows_collate_like_records(processor, records):
+    from mathvlm.train.data import as_dataset
+
+    collate = Collator(processor, MAX_LEN)
+    rows = as_dataset(records[:3])
+    assert rows.column_names == ["id", "image", "target"]
+    a, b = collate(records[:3]), collate([rows[i] for i in range(3)])
+    assert all(torch.equal(a[k], b[k]) for k in a)
