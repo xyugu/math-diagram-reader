@@ -133,7 +133,11 @@ uv run ruff check . --fix    # lint
 uv run ruff format .         # format
 uv run python scripts/check_env.py
 uv run python -m mathvlm.augment --demo   # grids of escalating and random augmentation
-uv run python -m mathvlm.generate.build --split val --n 16 --seed 0
+# synthetic splits, master seed 0 (the split name is part of every sample's seed, so splits
+# never share a figure; ~10% of text-only questions repeat because their template space is small)
+uv run python -m mathvlm.generate.build --split val --n 200 --seed 0 --workers 12     # model selection
+uv run python -m mathvlm.generate.build --split test --n 500 --seed 0 --workers 12    # final numbers only
+uv run python -m mathvlm.generate.build --split train --n 20000 --seed 0 --workers 12 # ~5 min, 6 GB
 uv run python -m mathvlm.eval.run_eval --split val --oracle   # GT as predictions: must be perfect
 uv run python -m mathvlm.infer --split val --name zeroshot      # raw outputs, batch 8, ~2 min
 uv run python -m mathvlm.eval.run_eval --split val --pred outputs/infer/val/zeroshot/predictions.jsonl
