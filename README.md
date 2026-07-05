@@ -30,23 +30,30 @@ All tunables live in `configs/default.yaml`.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 1 | Env, schema, renderer, synthetic generator, eval harness, zero-shot baseline | done |
-| 2 | LoRA SFT on synthetic geometry + public math OCR data | not started |
+| 2 | LoRA SFT on synthetic geometry + public math OCR data | in progress (synthetic done) |
 | 3 | Realism augmentation; eval on real textbook diagrams (e.g. PGDP5K) | not started |
 | 4 | Optional GRPO using eval metrics as rewards; export for local inference | not started |
 
-## Baseline
+## Results
 
-Zero-shot `Qwen/Qwen3.5-2B` on the synthetic val split (200 samples, master seed 0, 177 with a
-diagram), greedy, batch 8. Every later phase is compared against this.
+Synthetic val split (200 samples, master seed 0, 177 with a diagram), greedy, batch 8. The
+test split (500) is held back for final numbers. `sft20k`: LoRA r=16 on the language model,
+1 epoch over 20k synthetic samples (1,250 steps, 42 min), `outputs/train/sft20k/`.
 
-| Metric | Zero-shot |
-|--------|-----------|
-| JSON parse rate (strict / with fence stripping) | 0.0% / 99.0% |
-| Schema valid rate | 97.5% |
-| Diagram detection accuracy | 10.5% (never predicts a diagram) |
-| Text NED, normalized | 0.142 |
-| Structure F1, strict / geometric | 0.000 / 0.000 |
-| Point error | n/a (no diagrams predicted) |
+| Metric | Zero-shot | sft20k |
+|--------|-----------|--------|
+| JSON parse rate (strict / with fence stripping) | 0.0% / 99.0% | 100% / 100% |
+| Schema valid rate | 97.5% | 100% |
+| Diagram detection accuracy | 10.5% | 100% |
+| Text NED, normalized / exact match | 0.142 / 3.0% | 0.000 / 99.0% |
+| Structure F1, strict / geometric | 0.000 / 0.000 | 0.989 / 0.989 |
+| F1 marks / labels | 0.000 / 0.000 | 0.980 / 0.930 |
+| Point error, mean / median (grid units) | n/a | 1.86 / 1.51 |
+
+The zero-shot model reads the text well but formats it wrong (no `$` delimiters, Unicode
+math, code fences) and never predicts a diagram. After fine-tuning, nearly all remaining
+errors are a label's value put on a neighbouring angle or segment, and point imprecision
+(~1.5 units on clean images, ~2.2 at the largest augmentation rotation).
 
 ## Design invariants
 
