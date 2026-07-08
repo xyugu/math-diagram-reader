@@ -36,19 +36,24 @@ All tunables live in `configs/default.yaml`.
 
 ## Results
 
-Synthetic val split (200 samples, master seed 0, 177 with a diagram), greedy, batch 8. The
-test split (500) is held back for final numbers. `sft20k`: LoRA r=16 on the language model,
-1 epoch over 20k synthetic samples (1,250 steps, 42 min), `outputs/train/sft20k/`.
+Synthetic splits, master seed 0: val (200 samples, 177 with a diagram) for model selection,
+test (500, 435 with a diagram) scored once per final model. Greedy, batch 8. `sft20k`: LoRA
+r=16 on the language model, 1 epoch over 20k synthetic samples (1,250 steps, 42 min),
+`outputs/train/sft20k/`.
 
-| Metric | Zero-shot | sft20k |
-|--------|-----------|--------|
-| JSON parse rate (strict / with fence stripping) | 0.0% / 99.0% | 100% / 100% |
-| Schema valid rate | 97.5% | 100% |
-| Diagram detection accuracy | 10.5% | 100% |
-| Text NED, normalized / exact match | 0.142 / 3.0% | 0.000 / 99.0% |
-| Structure F1, strict / geometric | 0.000 / 0.000 | 0.989 / 0.989 |
-| F1 marks / labels | 0.000 / 0.000 | 0.980 / 0.930 |
-| Point error, mean / median (grid units) | n/a | 1.86 / 1.51 |
+| Metric | Zero-shot val | Zero-shot test | sft20k val | sft20k test |
+|--------|---------------|----------------|------------|-------------|
+| JSON parse rate (strict / with fence stripping) | 0.0% / 99.0% | 0.0% / 99.0% | 100% / 100% | 100% / 100% |
+| Schema valid rate | 97.5% | 99.0% | 100% | 100% |
+| Diagram detection accuracy | 10.5% | 13.0% | 100% | 100% |
+| Text NED, normalized / exact match | 0.142 / 3.0% | 0.150 / 1.8% | 0.000 / 99.0% | 0.000 / 99.4% |
+| Structure F1, strict / geometric | 0.000 / 0.000 | 0.000 / 0.000 | 0.989 / 0.989 | 0.988 / 0.988 |
+| F1 marks / labels | 0.000 / 0.000 | 0.000 / 0.000 | 0.980 / 0.930 | 0.972 / 0.946 |
+| Point error, mean / median (grid units) | n/a | n/a | 1.86 / 1.51 | 1.84 / 1.43 |
+
+12 test samples (all text-only) share their answer with a training sample; leaving them out
+changes no number above. These are in-distribution scores: the model is tested on the same
+generator it was trained on, so they say nothing yet about real textbook images (Phase 3).
 
 The zero-shot model reads the text well but formats it wrong (no `$` delimiters, Unicode
 math, code fences) and never predicts a diagram. After fine-tuning, nearly all remaining
