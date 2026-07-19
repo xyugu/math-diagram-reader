@@ -108,6 +108,32 @@ DIAGRAMS: dict[str, dict] = {
         "segments": [["A", "A'"], ["A", "O_1"], ["A'", "O_1"], ["O_1", "B_2"]],
         "marks": [{"type": "equal_length", "segments": [["A", "O_1"], ["A'", "O_1"]]}],
     },
+    # v1.2: rays with arrowheads (one through a labeled point, one ending unlabeled), an
+    # arc label on the minor arc BD, and a free-text label inside the circle.
+    "rays_arcs_free_text": {
+        "points": {
+            "O": [40, 45],
+            "B": [68, 45],
+            "D": [40, 73],
+            "F": [40, 17],
+            "Q": [68, 17],
+            "_P1": [92, 45],
+            "_P2": [92, 17],
+        },  # fmt: skip
+        "segments": [["O", "_P1"], ["O", "D"], ["O", "F"], ["F", "_P2"]],
+        "circles": [{"center": "O", "radius": 28}],
+        "marks": [
+            {"type": "arrow", "at": "_P1", "from": "O"},
+            {"type": "arrow", "at": "_P2", "from": "F"},
+            {"type": "right_angle", "at": "O", "rays": ["B", "D"]},
+            {"type": "right_angle", "at": "F", "rays": ["O", "Q"]},
+        ],
+        "labels": [
+            {"arc": ["B", "D"], "text": "90^\\circ"},
+            {"at": [28, 33], "text": "A=40"},
+            {"on": ["O", "B"], "text": "28"},
+        ],
+    },
 }
 
 # name -> full Transcription JSON object (question text + diagram)

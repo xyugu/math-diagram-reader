@@ -67,9 +67,9 @@ def test_fixture_pages_are_valid(name):
 def test_fixtures_cover_every_feature():
     ds = [diagram(d) for d in DIAGRAMS.values()]
     mark_types = {m.type for d in ds for m in d.marks}
-    assert mark_types == {"right_angle", "equal_length", "parallel", "equal_angle"}
-    assert any(isinstance(lb, S.SegmentLabel) for d in ds for lb in d.labels)
-    assert any(isinstance(lb, S.AngleLabel) for d in ds for lb in d.labels)
+    assert mark_types == {"right_angle", "equal_length", "parallel", "equal_angle", "arrow"}
+    label_types = {type(lb) for d in ds for lb in d.labels}
+    assert label_types == {S.SegmentLabel, S.AngleLabel, S.ArcLabel, S.FreeTextLabel}
     assert any(d.circles for d in ds)
     names = {n for d in ds for n in d.points}
     assert any(S.is_unnamed(n) for n in names)
@@ -343,3 +343,64 @@ def test_length_label_stays_centered_when_uncrowded():
     }
     (label,) = [t for t in painter(obj).ax.texts if t.get_text() == "$7$"]
     assert label.get_position()[0] == pytest.approx(50)
+
+
+# ---------------------------------------------------------------------------
+# v1.2: arrowheads, arc labels, free text
+# ---------------------------------------------------------------------------
+
+
+def test_arrowhead_points_away_from_its_tail():
+    p = painter(DIAGRAMS["rays_arcs_free_text"])
+    m = next(m for m in p.d.marks if isinstance(m, S.ArrowMark) and m.at == "_P1")
+    tip, c1, c2 = p.arrowhead(m)
+    assert tip == p.P["_P1"]
+    base = ((c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2)
+    assert base[0] < tip[0] and base[1] == pytest.approx(tip[1])  # behind the tip, toward O
+    assert abs(c1[1] - c2[1]) > 0  # it has width across the ray
+
+
+def test_arrowhead_is_drawn_across_the_line():
+    arrow = {**HLINE, "marks": [{"type": "arrow", "at": "_P2", "from": "_P1"}]}
+    plain, with_arrow = (R.render_diagram(diagram(d), no_dots()) for d in (HLINE, arrow))
+    box = (0, 0, plain.width)
+    # behind the tip (head length 4.5, half-width 1.9 at its base), one unit off the line:
+    # ink only where the arrowhead is
+    x, y = R.grid_to_pixel(86.5, 21.0, box)
+    assert dark(with_arrow, x, y, radius=1) and not dark(plain, x, y, radius=1)
+    assert not dark(with_arrow, *R.grid_to_pixel(50, 23, box), radius=1)  # mid-ray: none
+
+
+def test_arc_label_sits_outside_the_minor_arc_midpoint():
+    p = painter(DIAGRAMS["rays_arcs_free_text"])
+    lb = next(lb for lb in p.d.labels if isinstance(lb, S.ArcLabel))
+    x, y = p.arc_label_anchor(lb, f"${lb.text}$", p.s.label_fontsize)
+    o = p.P["O"]
+    assert math.dist((x, y), o) > 28  # outside the circle
+    # B is east of O and D south (y down): the minor arc's midpoint is south-east
+    assert math.atan2(y - o[1], x - o[0]) == pytest.approx(math.pi / 4, abs=1e-6)
+
+
+def test_arc_label_without_a_circle_still_renders():
+    d = {"points": {"A": [20, 50], "B": [80, 50]}, "segments": [["A", "B"]],
+         "labels": [{"arc": ["A", "B"], "text": "x"}]}  # fmt: skip
+    p = painter(d)
+    x, y = p.arc_label_anchor(p.d.labels[0], "$x$", p.s.label_fontsize)
+    assert 40 < x < 60  # beside the chord's midpoint
+    R.render_diagram(diagram(d))
+
+
+def test_free_text_is_drawn_at_its_position():
+    text = {**HLINE, "labels": [{"at": [50, 70], "text": "A=40"}]}
+    plain, with_text = (R.render_diagram(diagram(d), no_dots()) for d in (HLINE, text))
+    x, y = R.grid_to_pixel(50, 70, (0, 0, plain.width))
+    assert dark(with_text, x, y, radius=12) and not dark(plain, x, y, radius=12)
+
+
+def test_degenerate_v12_prediction_renders():
+    d = diagram({
+        "points": {"A": [50, 50], "B": [50, 50]},
+        "marks": [{"type": "arrow", "at": "A", "from": "B"}],  # zero-length: no head
+        "labels": [{"arc": ["A", "B"], "text": "\\frac{"}, {"at": [0, 100], "text": "x"}],
+    })  # fmt: skip
+    R.render_diagram(d)

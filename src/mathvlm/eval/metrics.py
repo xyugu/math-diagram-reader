@@ -19,7 +19,8 @@ Per example (``evaluate_example``)
   The predicted diagram is renamed into GT names through the correspondence, then each
   category is compared as a multiset of canonical forms (schema.canonicalize), so list
   order and endpoint order never matter. Circles match by center (radius is geometry);
-  labels match on target *and* normalized text; marks match whole (an equal_length
+  labels match on target *and* normalized text (free text, attached to nothing, on its
+  text alone); arrowheads match on (tip, tail); other marks match whole (an equal_length
   group with one segment missing is one false positive plus one false negative). A
   prediction that is missing, invalid or null counts as an empty diagram, so failing on
   hard examples never helps.
@@ -56,7 +57,7 @@ from mathvlm.eval.parse import ParsedOutput, parse_output
 from mathvlm.schema import Diagram, Transcription, canonicalize
 
 CATEGORIES = ("points", "segments", "circles", "marks", "labels")
-MARK_TYPES = ("right_angle", "equal_length", "parallel", "equal_angle")
+MARK_TYPES = ("right_angle", "equal_length", "parallel", "equal_angle", "arrow")
 # The categories plus a per-type breakdown of marks ("marks.right_angle", ...).
 KEYS = (*CATEGORIES, *(f"marks.{t}" for t in MARK_TYPES))
 VARIANTS = ("strict", "geometric")
@@ -116,10 +117,18 @@ def _multisets(d: Diagram | None) -> dict[str, Counter]:
     out["segments"] = Counter(cd.segments)
     out["circles"] = Counter(c.center for c in d.circles)
     out["marks"] = Counter(cd.marks)
-    out["labels"] = Counter((*lb[:-1], normalize_label(lb[-1])) for lb in cd.labels)
+    out["labels"] = Counter(_label_key(lb) for lb in cd.labels)
     for m in cd.marks:
         out[f"marks.{m[0]}"][m] += 1
     return out
+
+
+def _label_key(lb: tuple) -> tuple:
+    """A canonical label with normalized text. Free text is attached to nothing, so it
+    matches on its text alone; its position is not part of the structure."""
+    if lb[0] == "at":
+        return ("at", normalize_label(lb[-1]))
+    return (*lb[:-1], normalize_label(lb[-1]))
 
 
 def structure_counts(gt: Diagram | None, pred: Diagram | None) -> dict[str, Counts]:

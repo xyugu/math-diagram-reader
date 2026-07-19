@@ -77,8 +77,8 @@ def with_diagram(**overrides) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_schema_version_is_1_1():
-    assert S.SCHEMA_VERSION == "1.1"
+def test_schema_version_is_1_2():
+    assert S.SCHEMA_VERSION == "1.2"
 
 
 def test_full_diagram_is_valid():
@@ -582,3 +582,122 @@ def test_label_on_undrawn_segment_is_flagged():
 def test_circle_outside_grid_is_flagged():
     d = diag({"points": {"O": [10, 50]}, "circles": [{"center": "O", "radius": 30}]})
     assert any("outside the grid" in i for i in S.consistency_issues(d))
+
+
+# ---------------------------------------------------------------------------
+# v1.2 additions: arc labels, free text labels, arrowhead marks
+# ---------------------------------------------------------------------------
+
+
+def v12_diagram() -> dict:
+    """Circle O through B and F (quarter arc BF labeled), a ray from H through _P1 ending
+    in an arrowhead, and a free-text area label."""
+    return {
+        "points": {"O": [50, 50], "B": [80, 50], "F": [50, 20], "H": [10, 90], "_P1": [30, 70]},
+        "segments": [["O", "B"], ["O", "F"], ["H", "_P1"]],
+        "circles": [{"center": "O", "radius": 30}],
+        "marks": [{"type": "arrow", "at": "_P1", "from": "H"}],
+        "labels": [
+            {"at": [20, 20], "text": "40"},
+            {"arc": ["F", "B"], "text": "90^\\circ"},
+            {"on": ["O", "B"], "text": "r"},
+        ],
+    }
+
+
+def test_v12_diagram_is_valid_and_consistent():
+    d = ok(output(v12_diagram())).diagram
+    assert isinstance(d.marks[0], S.ArrowMark) and d.marks[0].from_ == "H"
+    assert [type(lb).__name__ for lb in d.labels] == ["FreeTextLabel", "ArcLabel", "SegmentLabel"]
+    assert S.consistency_issues(d) == []
+
+
+def test_v11_outputs_stay_valid():
+    ok(output(full_diagram()))
+
+
+def test_v12_target_order_and_round_trip():
+    t = ok(output(v12_diagram()))
+    obj = json.loads(S.to_target_json(t))
+    assert obj["diagram"]["marks"] == [{"type": "arrow", "at": "_P1", "from": "H"}]
+    assert [next(iter(lb)) for lb in obj["diagram"]["labels"]] == ["on", "arc", "at"]
+    assert obj["diagram"]["labels"][1] == {"arc": ["B", "F"], "text": "90^\\circ"}
+    again = ok(obj)
+    assert S.canonicalize(again.diagram) == S.canonicalize(t.diagram)
+    assert S.to_target_json(again) == S.to_target_json(t)
+
+
+def test_v12_canonical_forms():
+    d = v12_diagram()
+    base = S.canonicalize(diag(d))
+    d["labels"][1]["arc"] = ["B", "F"]  # arc endpoints are unordered
+    assert S.canonicalize(diag(d)) == base
+    d["marks"] = [{"type": "arrow", "at": "H", "from": "_P1"}]  # but arrows have a direction
+    assert S.canonicalize(diag(d)).marks != base.marks
+    d = v12_diagram()
+    d["labels"][0]["at"] = [21, 20]  # free text keeps its position
+    assert S.canonicalize(diag(d)).labels != base.labels
+    assert ("arc", frozenset({"B", "F"}), "90^\\circ") in base.labels
+    assert ("at", (20, 20), "40") in base.labels
+    assert ("arrow", ("_P1", "H")) in base.marks
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        {"arc": ["B", "B"], "text": "x"},  # degenerate arc
+        {"arc": ["B", "Z"], "text": "x"},  # unknown point
+        {"arc": ["B"], "text": "x"},  # one endpoint
+        {"arc": ["B", "F"], "at": [1, 2], "text": "x"},  # two shapes
+        {"arc": ["B", "F"], "text": ""},  # empty text
+        {"at": [10.5, 3], "text": "x"},  # float coordinate
+        {"at": [101, 3], "text": "x"},  # off the grid
+        {"at": [-1, 3], "text": "x"},
+        {"at": [1, 2, 3], "text": "x"},
+        {"at": [1, 2]},  # no text
+        {"at": "O", "text": "x"},  # a point name is not a position
+    ],
+)
+def test_bad_v12_labels_rejected(label):
+    d = v12_diagram()
+    d["labels"] = [label]
+    invalid(output(d))
+
+
+@pytest.mark.parametrize(
+    "mark",
+    [
+        {"type": "arrow", "at": "H", "from": "H"},  # degenerate
+        {"type": "arrow", "at": "Z", "from": "H"},  # unknown point
+        {"type": "arrow", "at": "_P1"},  # no direction
+        {"type": "arrow", "at": "_P1", "from_": "H"},  # Python spelling is not accepted
+        {"type": "arrow", "at": "_P1", "from": "H", "to": "O"},  # extra key
+    ],
+)
+def test_bad_arrow_marks_rejected(mark):
+    d = v12_diagram()
+    d["marks"] = [mark]
+    invalid(output(d))
+
+
+def test_duplicate_v12_labels_rejected():
+    d = v12_diagram()
+    d["labels"] = [{"arc": ["B", "F"], "text": "1"}, {"arc": ["F", "B"], "text": "2"}]
+    _assert_mentions(invalid(output(d)), "duplicate")
+    d["labels"] = [{"at": [5, 5], "text": "1"}, {"at": [5, 5], "text": "2"}]
+    _assert_mentions(invalid(output(d)), "duplicate")
+    d["marks"] = [{"type": "arrow", "at": "_P1", "from": "H"}] * 2
+    d["labels"] = []
+    _assert_mentions(invalid(output(d)), "duplicate")
+
+
+def test_arrow_on_undrawn_segment_is_flagged():
+    d = v12_diagram()
+    d["marks"] = [{"type": "arrow", "at": "B", "from": "H"}]
+    assert any("arrow at B" in i for i in S.consistency_issues(diag(d)))
+
+
+def test_arc_label_off_every_circle_is_flagged():
+    d = v12_diagram()
+    d["labels"] = [{"arc": ["B", "H"], "text": "x"}]  # H is not on circle O
+    assert any("no circle passes through BH" in i for i in S.consistency_issues(diag(d)))

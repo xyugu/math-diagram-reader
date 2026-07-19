@@ -76,12 +76,15 @@ def rename(d: dict, m: dict[str, str]) -> dict:
             return {**mk, "at": f(mk["at"]), "rays": [f(x) for x in mk["rays"]]}
         if mk["type"] == "equal_angle":
             return {**mk, "angles": [[f(x) for x in a] for a in mk["angles"]]}
+        if mk["type"] == "arrow":
+            return {**mk, "at": f(mk["at"]), "from": f(mk["from"])}
         return {**mk, "segments": [[f(x) for x in s] for s in mk["segments"]]}
 
     def label(lb):
-        if "on" in lb:
-            return {"on": [f(x) for x in lb["on"]], "text": lb["text"]}
-        return {"angle": [f(x) for x in lb["angle"]], "text": lb["text"]}
+        if "at" in lb:
+            return dict(lb)
+        key = next(k for k in ("on", "angle", "arc") if k in lb)
+        return {key: [f(x) for x in lb[key]], "text": lb["text"]}
 
     return {
         "points": {f(k): v for k, v in d["points"].items()},
@@ -745,3 +748,105 @@ def test_report_handles_failures_and_empty_runs():
     assert report._visible("a\x0cb\nc") == "a\\x0cb\nc"
     text = report.format_summary(M.summarize([]))
     assert "0 samples" in text
+
+
+# ---------------------------------------------------------------------------
+# v1.2: arc labels, free text, arrowheads
+# ---------------------------------------------------------------------------
+
+V12 = {
+    "points": {
+        "O": [40, 45],
+        "B": [68, 45],
+        "D": [40, 73],
+        "F": [40, 17],
+        "_P1": [92, 45],
+        "_P2": [92, 17],
+    },  # fmt: skip
+    "segments": [["O", "_P1"], ["O", "D"], ["O", "F"], ["F", "_P2"]],
+    "circles": [{"center": "O", "radius": 28}],
+    "marks": [
+        {"type": "arrow", "at": "_P1", "from": "O"},
+        {"type": "arrow", "at": "_P2", "from": "F"},
+        {"type": "right_angle", "at": "O", "rays": ["B", "D"]},
+    ],
+    "labels": [
+        {"arc": ["B", "D"], "text": "90^\\circ"},
+        {"at": [28, 33], "text": "A=40"},
+        {"on": ["O", "B"], "text": "28"},
+    ],
+}
+
+
+def with_v12(**changes) -> dict:
+    d = copy.deepcopy(V12)
+    d.update(changes)
+    return d
+
+
+def test_v12_identity_scores_perfectly():
+    r = ev(V12, V12)
+    for v in M.VARIANTS:
+        assert all_f1(r, v) == dict.fromkeys(M.CATEGORIES, 1.0)
+        assert cnt(r, v, "marks.arrow") == (2, 0, 0)
+        assert cnt(r, v, "labels") == (3, 0, 0)
+
+
+@pytest.mark.parametrize(
+    ("label", "match"),
+    [
+        ({"arc": ["D", "B"], "text": "90^\\circ"}, True),  # endpoints unordered
+        ({"arc": ["B", "D"], "text": "90°"}, True),  # normalized text
+        ({"arc": ["B", "D"], "text": "$90^{\\circ}$"}, True),
+        ({"arc": ["B", "F"], "text": "90^\\circ"}, False),  # another arc
+        ({"arc": ["B", "D"], "text": "80^\\circ"}, False),
+        ({"on": ["B", "D"], "text": "90^\\circ"}, False),  # on the chord, not the arc
+        ({"at": [70, 70], "text": "90^\\circ"}, False),  # floating, not on the arc
+    ],
+)
+def test_arc_labels_match_on_endpoints_and_text(label, match):
+    pred = with_v12(labels=[label, *V12["labels"][1:]])
+    assert cnt(ev(V12, pred), "strict", "labels") == ((3, 0, 0) if match else (2, 1, 1))
+
+
+@pytest.mark.parametrize(
+    ("label", "match"),
+    [
+        ({"at": [28, 33], "text": "A=40"}, True),
+        ({"at": [80, 90], "text": "A = 40"}, True),  # position is not structure
+        ({"at": [28, 33], "text": "A=41"}, False),
+        ({"on": ["O", "D"], "text": "A=40"}, False),  # attached to something: different
+    ],
+)
+def test_free_text_matches_on_text_alone(label, match):
+    pred = with_v12(labels=[V12["labels"][0], label, V12["labels"][2]])
+    assert cnt(ev(V12, pred), "strict", "labels") == ((3, 0, 0) if match else (2, 1, 1))
+
+
+def test_arrow_direction_matters():
+    flipped = with_v12(marks=[{"type": "arrow", "at": "O", "from": "_P1"}, *V12["marks"][1:]])
+    r = ev(V12, flipped)
+    assert cnt(r, "strict", "marks.arrow") == (1, 1, 1)
+    assert cnt(r, "strict", "marks.right_angle") == (1, 0, 0)
+
+
+def test_v12_relabeling_drops_strict_but_not_geometric():
+    pred = rename(V12, {"O": "C", "B": "E", "D": "G", "F": "H"})
+    r = ev(V12, pred)
+    assert all_f1(r, "geometric") == dict.fromkeys(M.CATEGORIES, 1.0)
+    assert cnt(r, "geometric", "marks.arrow") == (2, 0, 0)
+    assert cnt(r, "strict", "labels") == (1, 2, 2)  # only free text survives renaming
+
+
+def test_arrow_tips_are_unnamed_points_matched_by_position():
+    swapped = rename(V12, {"_P1": "_P2", "_P2": "_P1"})
+    r = ev(V12, swapped)
+    assert all_f1(r, "strict") == dict.fromkeys(M.CATEGORIES, 1.0)
+    assert r.pairs["strict"]["_P1"] == "_P2"
+
+
+def test_v12_oracle_through_the_target_serializer():
+    t = tr(V12)
+    r = M.evaluate_example(t, to_target_json(t))
+    assert all_f1(r, "strict") == dict.fromkeys(M.CATEGORIES, 1.0)
+    assert max(r.geometry.errors) < 1e-9

@@ -66,7 +66,7 @@ These are hard rules. Code comments refer to them by number. Changing one is a d
 documented decision, never a side effect.
 
 1. **The diagram schema is frozen.** It lives in exactly one module, `src/mathvlm/schema.py`,
-   currently `SCHEMA_VERSION = "1.1"`. A change to its shape requires a version bump and a
+   currently `SCHEMA_VERSION = "1.2"` (1.2 added arc labels, free-text labels and arrowheads for real textbook figures). A change to its shape requires a version bump and a
    changelog entry in that file.
 2. **The instruction string is a single constant** in `src/mathvlm/prompts.py`. Training and
    inference must use the identical string; never inline a paraphrase anywhere else.

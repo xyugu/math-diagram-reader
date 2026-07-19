@@ -25,6 +25,10 @@ Drawing conventions
   ``style.angle_arcs`` is set (and the angle has no equal_angle arcs already).
 - point labels: placed in the widest free direction around the point, biased away
   from the figure's centroid. Unlabeled ``_P`` points get no label.
+- arrow: a filled arrowhead with its tip at the point, pointing away from ``from``;
+  the point gets no dot.
+- arc labels: outside the circle, on the radius through the minor arc's midpoint.
+- free text: centered on its grid position.
 
 Fonts and LaTeX
 ---------------
@@ -61,9 +65,12 @@ from mathvlm.schema import (
     GRID_MAX,
     GRID_MIN,
     AngleLabel,
+    ArcLabel,
+    ArrowMark,
     Diagram,
     EqualAngleMark,
     EqualLengthMark,
+    FreeTextLabel,
     ParallelMark,
     RightAngleMark,
     SegmentLabel,
@@ -256,6 +263,7 @@ class _Painter:
         self.arc_radius: dict[tuple, float] = {}
         # point name -> directions (radians) that a point label should avoid
         self.obstacles: dict[str, list[float]] = {k: [] for k in self.P}
+        self.arrow_tips = {m.at for m in d.marks if isinstance(m, ArrowMark)}
 
     # -- primitives -------------------------------------------------------
 
@@ -299,11 +307,14 @@ class _Painter:
     def draw(self) -> None:
         self.draw_circles()
         self.draw_segments()
+        self.draw_arrows()
         self.draw_right_angles()
         self.draw_segment_decorations()
         self.draw_equal_angles()
         self.draw_angle_labels()
         self.draw_segment_labels()
+        self.draw_arc_labels()
+        self.draw_free_text()
         self.draw_points()
 
     def draw_circles(self) -> None:
@@ -323,6 +334,26 @@ class _Painter:
         for a, b in self.d.segments:
             pa, pb = self.P[a], self.P[b]
             self.line([pa[0], pb[0]], [pa[1], pb[1]])
+
+    def arrowhead(self, m: ArrowMark) -> list[Vec] | None:
+        """Triangle (tip, two base corners) of an arrowhead, in grid units."""
+        tip, tail = self.P[m.at], self.P[m.from_]
+        u = _unit(*_sub(tip, tail))
+        if u is None:
+            return None
+        length, half = 1.0 * self.s.mark_size, 0.42 * self.s.mark_size
+        base = (tip[0] - u[0] * length, tip[1] - u[1] * length)
+        n = (-u[1], u[0])
+        return [tip, (base[0] + n[0] * half, base[1] + n[1] * half),
+                (base[0] - n[0] * half, base[1] - n[1] * half)]  # fmt: skip
+
+    def draw_arrows(self) -> None:
+        for m in self.d.marks:
+            if isinstance(m, ArrowMark) and (tri := self.arrowhead(m)) is not None:
+                self.ax.fill(
+                    [p[0] for p in tri], [p[1] for p in tri], color=self.s.ink, lw=0, zorder=3
+                )
+                self.obstacles[m.at].append(_ang(_unit(*_sub(self.P[m.from_], self.P[m.at]))))
 
     def _bisector(self, v: Vec, e1: Vec, e2: Vec) -> Vec | None:
         u1, u2 = _unit(*_sub(e1, v)), _unit(*_sub(e2, v))
@@ -548,6 +579,43 @@ class _Painter:
                 off += 0.55 * self.s.mark_size  # clear the ticks/arrows at the midpoint
             self.text(mid[0] + n[0] * off, mid[1] + n[1] * off, text, fs)
 
+    def arc_label_anchor(self, lb: ArcLabel, text: str, fontsize: float) -> Vec:
+        """Center of an arc label: outside the circle through both endpoints, on the
+        radius through the minor arc's midpoint. Without such a circle (an implausible
+        prediction), beside the chord's midpoint, away from the figure."""
+        a, b = self.P[lb.arc[0]], self.P[lb.arc[1]]
+        hw, hh = self._half_extent(text, fontsize)
+        margin = 0.3 * self.s.mark_size
+        best = None
+        for c in self.d.circles:
+            o, r = self.P[c.center], float(c.radius)
+            err = abs(math.dist(a, o) - r) + abs(math.dist(b, o) - r)
+            if best is None or err < best[0]:
+                best = (err, o, r)
+        if best is not None and best[0] <= 2 * (self.tol + 1.0):
+            _, o, r = best
+            t1, t2 = _ang(_sub(a, o)), _ang(_sub(b, o))
+            tm = t1 + ((t2 - t1 + math.pi) % (2 * math.pi) - math.pi) / 2
+            u = (math.cos(tm), math.sin(tm))
+        else:
+            o = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            r = 0.0
+            u = _unit(*_sub(o, self.centroid)) or (0.0, -1.0)
+        off = r + margin + hw * abs(u[0]) + hh * abs(u[1])
+        return (o[0] + u[0] * off, o[1] + u[1] * off)
+
+    def draw_arc_labels(self) -> None:
+        fs = self.s.label_fontsize
+        for lb in self.d.labels:
+            if isinstance(lb, ArcLabel):
+                text = f"${lb.text}$"
+                self.text(*self.arc_label_anchor(lb, text, fs), text, fs)
+
+    def draw_free_text(self) -> None:
+        for lb in self.d.labels:
+            if isinstance(lb, FreeTextLabel):
+                self.text(float(lb.at[0]), float(lb.at[1]), f"${lb.text}$", self.s.label_fontsize)
+
     def _ray_directions(self, name: str) -> list[float]:
         p = self.P[name]
         dirs: list[float] = []
@@ -591,7 +659,7 @@ class _Painter:
         fs = self.s.label_fontsize
         dist_pt = _RC.label_offset_pt + 0.35 * fs
         for name, p in self.P.items():
-            if self.s.point_dots or name in centers:
+            if (self.s.point_dots or name in centers) and name not in self.arrow_tips:
                 self.ax.plot(
                     [p[0]], [p[1]], "o", ms=self.s.dot_size, color=self.s.ink, zorder=5,
                     markeredgewidth=0,

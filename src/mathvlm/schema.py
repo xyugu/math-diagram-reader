@@ -6,6 +6,16 @@ changelog entry below, and tell the user.
 
 CHANGELOG
 ---------
+1.2 (2026-10-26, approved by the user before implementation)
+    Additions only: every v1.1 output is a valid v1.2 output. Motivated by real textbook
+    figures (PGDP5K) that v1.1 could not express.
+    - Arc label ``{"arc": ["B", "F"], "text": "100^\\circ"}``: text on the minor arc
+      from B to F of the circle through both.
+    - Free text label ``{"at": [42, 57], "text": "40"}``: text at a grid position,
+      attached to nothing (area labels, region text).
+    - Arrowhead mark ``{"type": "arrow", "at": "_P1", "from": "H"}``: an arrowhead at
+      ``at`` on the drawn segment from ``from``, pointing away from ``from`` (a ray or
+      line drawn past its last point).
 1.1 (2026-10-24, approved by the user before implementation)
     - ``right_angle`` marks gain a required ``rays`` pair: ``{"type": "right_angle",
       "at": "C", "rays": ["A", "B"]}`` means angle A-C-B is 90 degrees. In v1, ``at``
@@ -39,6 +49,8 @@ Conventions fixed by the schema
   the same spelling the question text uses in LaTeX, so labels match ``$O_1$``.
 - Points that matter but are not labeled in the figure are named ``_P<n>`` (``_P1``,
   ``_P2``, ...; no leading zeros). No other underscore-prefixed names are allowed.
+- Arcs are named by their two endpoints and mean the minor arc of the circle through
+  both. Arrowheads mark rays and lines drawn past their last point.
 """
 
 from __future__ import annotations
@@ -65,7 +77,7 @@ from pydantic import (
 
 from mathvlm.config import get_config
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 
 _SC = get_config().schema_
 GRID_MIN: int = _SC.grid_min
@@ -179,6 +191,20 @@ class ParallelMark(_Strict):
         return self
 
 
+class ArrowMark(_Strict):
+    """An arrowhead at ``at`` on the segment from ``from``, pointing away from ``from``."""
+
+    type: Literal["arrow"]
+    at: PointName
+    from_: PointName = Field(alias="from")
+
+    @model_validator(mode="after")
+    def _check(self) -> ArrowMark:
+        if self.at == self.from_:
+            raise ValueError(f"degenerate arrow at {self.at!r}: 'at' and 'from' must differ")
+        return self
+
+
 class EqualAngleMark(_Strict):
     type: Literal["equal_angle"]
     angles: Annotated[list[Angle], Field(min_length=2)]
@@ -190,13 +216,14 @@ class EqualAngleMark(_Strict):
 
 
 Mark = Annotated[
-    RightAngleMark | EqualLengthMark | ParallelMark | EqualAngleMark,
+    RightAngleMark | EqualLengthMark | ParallelMark | EqualAngleMark | ArrowMark,
     Field(discriminator="type"),
 ]
+AnyMark = RightAngleMark | EqualLengthMark | ParallelMark | EqualAngleMark | ArrowMark
 
 
 # ---------------------------------------------------------------------------
-# Labels (two shapes, told apart by which key is present)
+# Labels (four shapes, told apart by which key is present)
 # ---------------------------------------------------------------------------
 
 
@@ -214,26 +241,48 @@ class AngleLabel(_Strict):
     text: NonEmptyText
 
 
+class ArcLabel(_Strict):
+    """A label on the minor arc between two points of a circle:
+    ``{"arc": ["B", "F"], "text": "100^\\circ"}``."""
+
+    arc: Segment
+    text: NonEmptyText
+
+
+class FreeTextLabel(_Strict):
+    """Text at a grid position, attached to nothing: ``{"at": [42, 57], "text": "40"}``."""
+
+    at: Coord
+    text: NonEmptyText
+
+
+AnyLabel = SegmentLabel | AngleLabel | ArcLabel | FreeTextLabel
+_LABEL_KEYS = {"on": "segment", "angle": "angle", "arc": "arc", "at": "free_text"}
+_LABEL_CLASSES = {SegmentLabel: "segment", AngleLabel: "angle", ArcLabel: "arc",
+                  FreeTextLabel: "free_text"}  # fmt: skip
+
+
 def _label_kind(v: Any) -> str | None:
-    if isinstance(v, SegmentLabel):
-        return "segment"
-    if isinstance(v, AngleLabel):
-        return "angle"
+    if type(v) in _LABEL_CLASSES:
+        return _LABEL_CLASSES[type(v)]
     if isinstance(v, dict):
-        has_on, has_angle = "on" in v, "angle" in v
-        if has_on and not has_angle:
-            return "segment"
-        if has_angle and not has_on:
-            return "angle"
+        present = [kind for key, kind in _LABEL_KEYS.items() if key in v]
+        if len(present) == 1:
+            return present[0]
     return None
 
 
 Label = Annotated[
-    Annotated[SegmentLabel, Tag("segment")] | Annotated[AngleLabel, Tag("angle")],
+    Annotated[SegmentLabel, Tag("segment")]
+    | Annotated[AngleLabel, Tag("angle")]
+    | Annotated[ArcLabel, Tag("arc")]
+    | Annotated[FreeTextLabel, Tag("free_text")],
     Discriminator(
         _label_kind,
         custom_error_type="label_kind",
-        custom_error_message="a label needs exactly one of 'on' (segment) or 'angle'",
+        custom_error_message=(
+            "a label needs exactly one of 'on' (segment), 'angle', 'arc' or 'at' (free text)"
+        ),
     ),
 ]
 
@@ -272,8 +321,7 @@ class Diagram(_Strict):
             for n in _mark_point_names(m):
                 need(n, f"{m.type} mark")
         for lb in self.labels:
-            names = lb.on if isinstance(lb, SegmentLabel) else lb.angle
-            for n in names:
+            for n in _label_point_names(lb):
                 need(n, f"label {lb.text!r}")
 
         for items, key, what in (
@@ -403,15 +451,32 @@ def _circle_key(c: Circle) -> tuple[str, float]:
     return (c.center, float(c.radius))
 
 
-def _label_target_key(lb: SegmentLabel | AngleLabel) -> tuple:
+def _label_target_key(lb: AnyLabel) -> tuple:
+    """What a label is attached to. At most one label per target (free text: per spot)."""
     if isinstance(lb, SegmentLabel):
         return ("on", _seg_key(lb.on))
-    return ("angle", _angle_key(lb.angle))
+    if isinstance(lb, AngleLabel):
+        return ("angle", _angle_key(lb.angle))
+    if isinstance(lb, ArcLabel):
+        return ("arc", _seg_key(lb.arc))
+    return ("at", (int(lb.at[0]), int(lb.at[1])))
 
 
-def _mark_point_names(m: RightAngleMark | EqualLengthMark | ParallelMark | EqualAngleMark):
+def _label_point_names(lb: AnyLabel) -> tuple[str, ...]:
+    if isinstance(lb, SegmentLabel):
+        return tuple(lb.on)
+    if isinstance(lb, AngleLabel):
+        return tuple(lb.angle)
+    if isinstance(lb, ArcLabel):
+        return tuple(lb.arc)
+    return ()
+
+
+def _mark_point_names(m: AnyMark):
     if isinstance(m, RightAngleMark):
         return (m.at, *m.rays)
+    if isinstance(m, ArrowMark):
+        return (m.at, m.from_)
     if isinstance(m, EqualLengthMark | ParallelMark):
         return tuple(n for s in m.segments for n in s)
     return tuple(n for a in m.angles for n in a)
@@ -425,23 +490,27 @@ def canonical_angle(ang: tuple[str, str, str]) -> CanonAngle:
     return _angle_key(ang)
 
 
-def canonical_mark(m: RightAngleMark | EqualLengthMark | ParallelMark | EqualAngleMark) -> tuple:
+def canonical_mark(m: AnyMark) -> tuple:
     """Hashable, order-free form of a mark.
 
     right_angle  -> ("right_angle", (vertex, {ray, ray}))
     equal_length -> ("equal_length", {{A,B}, {C,D}, ...})
     parallel     -> ("parallel", {{A,B}, {C,D}, ...})
     equal_angle  -> ("equal_angle", {(vertex, {end, end}), ...})
+    arrow        -> ("arrow", (at, from))   -- direction matters
     """
     if isinstance(m, RightAngleMark):
         return ("right_angle", (m.at, frozenset(m.rays)))
+    if isinstance(m, ArrowMark):
+        return ("arrow", (m.at, m.from_))
     if isinstance(m, EqualLengthMark | ParallelMark):
         return (m.type, frozenset(_seg_key(s) for s in m.segments))
     return ("equal_angle", frozenset(_angle_key(a) for a in m.angles))
 
 
-def canonical_label(lb: SegmentLabel | AngleLabel) -> tuple:
-    """``("on", {A,B}, text)`` or ``("angle", (vertex, {end, end}), text)``.
+def canonical_label(lb: AnyLabel) -> tuple:
+    """``("on", {A,B}, text)``, ``("angle", (vertex, {end, end}), text)``,
+    ``("arc", {A,B}, text)`` or ``("at", (x, y), text)``.
 
     Text is only stripped. LaTeX normalization is an eval concern (eval/normalize.py).
     """
@@ -475,7 +544,7 @@ def canonicalize(d: Diagram) -> CanonicalDiagram:
 # Deterministic serialization (training targets)
 # ---------------------------------------------------------------------------
 
-_MARK_ORDER = {"right_angle": 0, "equal_length": 1, "parallel": 2, "equal_angle": 3}
+_MARK_ORDER = {"right_angle": 0, "equal_length": 1, "parallel": 2, "equal_angle": 3, "arrow": 4}
 
 
 def name_sort_key(name: str) -> tuple:
@@ -511,6 +580,8 @@ def _angle_order(a: list[str]) -> tuple:
 def _mark_out(m) -> dict[str, Any]:
     if isinstance(m, RightAngleMark):
         return {"type": m.type, "at": m.at, "rays": _sorted_pair(*m.rays)}
+    if isinstance(m, ArrowMark):
+        return {"type": m.type, "at": m.at, "from": m.from_}
     if isinstance(m, EqualLengthMark | ParallelMark):
         segs = sorted((_seg_out(s) for s in m.segments), key=_seg_order)
         return {"type": m.type, "segments": segs}
@@ -522,6 +593,8 @@ def _mark_order(m: dict[str, Any]) -> tuple:
     t = m["type"]
     if t == "right_angle":
         body: tuple = (name_sort_key(m["at"]), *(name_sort_key(n) for n in m["rays"]))
+    elif t == "arrow":
+        body = (name_sort_key(m["at"]), name_sort_key(m["from"]))
     elif t == "equal_angle":
         body = tuple(_angle_order(a) for a in m["angles"])
     else:
@@ -532,13 +605,21 @@ def _mark_order(m: dict[str, Any]) -> tuple:
 def _label_out(lb) -> dict[str, Any]:
     if isinstance(lb, SegmentLabel):
         return {"on": _seg_out(lb.on), "text": lb.text}
-    return {"angle": _angle_out(lb.angle), "text": lb.text}
+    if isinstance(lb, AngleLabel):
+        return {"angle": _angle_out(lb.angle), "text": lb.text}
+    if isinstance(lb, ArcLabel):
+        return {"arc": _seg_out(lb.arc), "text": lb.text}
+    return {"at": [lb.at[0], lb.at[1]], "text": lb.text}
 
 
 def _label_order(lb: dict[str, Any]) -> tuple:
     if "on" in lb:
         return (0, _seg_order(lb["on"]), lb["text"])
-    return (1, _angle_order(lb["angle"]), lb["text"])
+    if "angle" in lb:
+        return (1, _angle_order(lb["angle"]), lb["text"])
+    if "arc" in lb:
+        return (2, _seg_order(lb["arc"]), lb["text"])
+    return (3, ((lb["at"][1], lb["at"][0], ""),), lb["text"])  # top to bottom
 
 
 def diagram_to_obj(d: Diagram) -> dict[str, Any]:
@@ -658,6 +739,9 @@ def consistency_issues(d: Diagram) -> list[str]:
                         issues.append(
                             f"parallel: {''.join(ref)} and {''.join(s)} differ by {dd:.1f} deg"
                         )
+        elif isinstance(m, ArrowMark):
+            if not covered(m.from_, m.at):
+                issues.append(f"arrow at {m.at}: segment {m.from_}{m.at} is not drawn")
         else:  # EqualAngleMark
             for a in m.angles:
                 for end in (a[0], a[2]):
@@ -667,10 +751,18 @@ def consistency_issues(d: Diagram) -> list[str]:
             if max(vals) - min(vals) > ang_tol:
                 issues.append(f"equal_angle: angles {[round(x, 1) for x in vals]} differ")
 
+    def on_circle(name: str, c: Circle) -> bool:
+        return abs(math.dist(P[name], P[c.center]) - float(c.radius)) <= tol + 1.0
+
     for lb in d.labels:
         if isinstance(lb, SegmentLabel):
             if not covered(*lb.on):
                 issues.append(f"label {lb.text!r}: segment {''.join(lb.on)} is not drawn")
+        elif isinstance(lb, ArcLabel):
+            if not any(on_circle(lb.arc[0], c) and on_circle(lb.arc[1], c) for c in d.circles):
+                issues.append(f"label {lb.text!r}: no circle passes through {''.join(lb.arc)}")
+        elif isinstance(lb, FreeTextLabel):
+            pass
         else:
             a = lb.angle
             for end in (a[0], a[2]):

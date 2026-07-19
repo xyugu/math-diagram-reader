@@ -324,16 +324,17 @@ def rename_into(pred: Diagram, pairs: Mapping[str, str], gt_names) -> Diagram:
     for m in obj["marks"]:
         if m["type"] == "right_angle":
             renamed_marks.append({**m, "at": f(m["at"]), "rays": [f(r) for r in m["rays"]]})
+        elif m["type"] == "arrow":
+            renamed_marks.append({**m, "at": f(m["at"]), "from": f(m["from"])})
         elif m["type"] == "equal_angle":
             renamed_marks.append({**m, "angles": [[f(x) for x in a] for a in m["angles"]]})
         else:
             renamed_marks.append({**m, "segments": [[f(x) for x in s] for s in m["segments"]]})
-    renamed_labels = [
-        {"on": [f(x) for x in lb["on"]], "text": lb["text"]}
-        if "on" in lb
-        else {"angle": [f(x) for x in lb["angle"]], "text": lb["text"]}
-        for lb in obj["labels"]
-    ]
+    renamed_labels = []
+    for lb in obj["labels"]:
+        key = next(k for k in ("on", "angle", "arc", "at") if k in lb)
+        target = lb[key] if key == "at" else [f(x) for x in lb[key]]  # free text: no names
+        renamed_labels.append({key: target, "text": lb["text"]})
     return Diagram.model_validate(
         {
             "points": {f(k): v for k, v in obj["points"].items()},
