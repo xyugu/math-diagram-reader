@@ -276,6 +276,12 @@ def text_scores(pred: str | None, gt: str) -> dict[str, Any]:
     return {"has_text": True, "ned": ned(a, b), "ned_raw": ned(pred, gt), "exact": a == b}
 
 
+def _without_marks(d: Diagram | None, types) -> Diagram | None:
+    if d is None or not types:
+        return d
+    return d.model_copy(update={"marks": [m for m in d.marks if m.type not in types]})
+
+
 def evaluate_example(
     gt: Transcription,
     raw: str | None,
@@ -283,14 +289,19 @@ def evaluate_example(
     id: str = "",
     meta: dict[str, Any] | None = None,
     truncated: bool = False,
+    unannotated: tuple[str, ...] | list[str] = (),
     cfg: EvalConfig | None = None,
 ) -> ExampleResult:
-    """Score one raw model output (``None``: no prediction) against its ground truth."""
+    """Score one raw model output (``None``: no prediction) against its ground truth.
+
+    ``unannotated``: mark types the dataset never records (PGDP5K has no arrowheads).
+    They are removed from both sides before scoring, so drawing one is not an error.
+    """
     cfg = cfg or get_config().eval
     parsed = parse_output(raw, truncated)
     pred = parsed.transcription
-    gd = gt.diagram
-    pd = pred.diagram if pred is not None else None
+    gd = _without_marks(gt.diagram, unannotated)
+    pd = _without_marks(pred.diagram if pred is not None else None, unannotated)
 
     text = text_scores(parsed.text, gt.text)
     text["escape_suspect"] = parsed.escape_suspect

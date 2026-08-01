@@ -850,3 +850,14 @@ def test_v12_oracle_through_the_target_serializer():
     r = M.evaluate_example(t, to_target_json(t))
     assert all_f1(r, "strict") == dict.fromkeys(M.CATEGORIES, 1.0)
     assert max(r.geometry.errors) < 1e-9
+
+
+def test_unannotated_mark_types_are_ignored_on_both_sides():
+    gt = with_v12(marks=[m for m in V12["marks"] if m["type"] != "arrow"])  # never recorded
+    r = M.evaluate_example(tr(gt), js(V12))
+    assert cnt(r, "strict", "marks") == (1, 2, 0)  # the drawn arrowheads count against it
+    r = M.evaluate_example(tr(gt), js(V12), unannotated=["arrow"])
+    assert cnt(r, "strict", "marks") == (1, 0, 0)
+    assert cnt(r, "strict", "marks.arrow") == (0, 0, 0)
+    r = M.evaluate_example(tr(V12), js(gt), unannotated=["arrow"])  # and missing ones too
+    assert cnt(r, "strict", "marks") == (1, 0, 0)

@@ -62,6 +62,7 @@ def evaluate_split(
                 id=row["id"],
                 meta={"family": row["family"], "kind": row["kind"]},
                 truncated=bool(p.get("truncated", False)),
+                unannotated=row.get("unannotated", ()),
             )
         )
     return results

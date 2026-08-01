@@ -13,9 +13,12 @@ from mathvlm.schema import Transcription, validate_output_json
 
 
 def split_dir(split: str, cfg: Config | None = None) -> Path:
-    """Default location of a split: ``<data_dir>/synth/<split>``."""
+    """Default location of a split: ``<data_dir>/synth/<split>`` for generated splits
+    (``val``), ``<data_dir>/real/<dataset>/<split>`` for converted real data
+    (``pgdp5k/val``)."""
     cfg = cfg or get_config()
-    return cfg.paths.resolved("data_dir") / "synth" / split
+    root = cfg.paths.resolved("data_dir")
+    return root / "real" / split if "/" in split else root / "synth" / split
 
 
 def read_manifest(data_dir: Path) -> list[dict]:

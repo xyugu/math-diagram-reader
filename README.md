@@ -109,7 +109,9 @@ src/mathvlm/
     report.py             per-example JSONL + side-by-side images + summary
     run_eval.py           CLI
   infer.py                batched generation -> raw outputs (base model, or + a LoRA adapter)
-  splits.py               reading a generated split: manifest + validated ground truth
+  splits.py               reading a split (synthetic `val`, or real `pgdp5k/val`): manifest + ground truth
+  real/
+    pgdp5k.py             PGDP5K real textbook diagrams -> our schema and split layout (eval only)
   train/
     data.py               training examples: the inference prompt + target, loss on the target
     run.py                CLI: LoRA fine-tuning (Unsloth + TRL)
@@ -158,6 +160,9 @@ uv run python -m mathvlm.generate.build --split smoke --n 32 --seed 0
 uv run python -m mathvlm.train.run --name overfit --train-split smoke --overfit   # ~4 min
 uv run python -m mathvlm.infer --split smoke --adapter outputs/train/overfit/adapter
 uv run python -m mathvlm.train.run --name <run> --train-split train
+# Phase 3: real textbook diagrams (PGDP5K, 85 MB from Hugging Face, kept on ext4 only)
+uv run python -m mathvlm.real.pgdp5k --raw ~/vlm_data/raw/pgdp5k/extracted/PGDP5K --splits val test
+uv run python -m mathvlm.infer --split pgdp5k/val --adapter outputs/train/sft20k/adapter
 ```
 
 Always use `uv run`; do not activate the venv manually or install into another environment.
