@@ -31,7 +31,7 @@ All tunables live in `configs/default.yaml`.
 |-------|-------|--------|
 | 1 | Env, schema, renderer, synthetic generator, eval harness, zero-shot baseline | done |
 | 2 | LoRA SFT on synthetic geometry + public math OCR data | in progress (synthetic done) |
-| 3 | Realism augmentation; eval on real textbook diagrams (e.g. PGDP5K) | not started |
+| 3 | Realism augmentation; eval on real textbook diagrams (e.g. PGDP5K) | in progress (eval done) |
 | 4 | Optional GRPO using eval metrics as rewards; export for local inference | not started |
 
 ## Results
@@ -59,6 +59,27 @@ The zero-shot model reads the text well but formats it wrong (no `$` delimiters,
 math, code fences) and never predicts a diagram. After fine-tuning, nearly all remaining
 errors are a label's value put on a neighbouring angle or segment, and point imprecision
 (~1.5 units on clean images, ~2.2 at the largest augmentation rotation).
+
+### Real textbook diagrams (Phase 3)
+
+PGDP5K val (500 diagram-only images from textbooks, converted by `mathvlm.real.pgdp5k`;
+ground-truth text is `""`; arrow marks are ignored because PGDP5K does not annotate them).
+
+| Metric | Zero-shot | sft20k |
+|--------|-----------|--------|
+| JSON parse rate / schema valid rate | 90.0% / 88.4% | 95.0% / 55.4% |
+| Diagram detection accuracy | 1.0% | 94.2% |
+| Structure F1, all samples (strict) | 0.000 | 0.480 |
+| Structure F1 where the output is valid (277) | n/a | 0.699 |
+| F1 points / segments / marks / labels | 0 / 0 / 0 / 0 | 0.59 / 0.49 / 0.26 / 0.29 |
+| Point error, mean / median (grid units) | n/a | 5.18 / 2.46 |
+
+The synthetic-only model transfers partly. Most of the loss is conventions the generator
+never showed it: 53% of PGDP5K points are unlabeled line ends and intersections, and the
+model names them `bottom_left`, `1`, `B1` (schema-invalid) instead of `_P<n>`; it never saw a
+page without question text, so it writes a description instead of `""`; rays with
+arrowheads, figures with no letters, colored figures and several labeled angles at one
+vertex are absent from its training data.
 
 ## Design invariants
 
