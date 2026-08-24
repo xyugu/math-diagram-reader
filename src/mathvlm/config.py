@@ -181,6 +181,11 @@ class TrainConfig(_Base):
     overfit: OverfitConfig
 
 
+class WebConfig(_Base):
+    host: str
+    port: int
+
+
 class Config(_Base):
     seed: int
     paths: PathsConfig
@@ -191,6 +196,7 @@ class Config(_Base):
     generate: GenerateConfig
     eval: EvalConfig
     train: TrainConfig
+    web: WebConfig
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 

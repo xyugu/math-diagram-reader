@@ -46,11 +46,18 @@ train = [
     "peft>=0.21.2",
     "datasets>=3.2",
 ]
+# Prediction viewer (mathvlm.web). Install with: uv sync --extra web (add --extra train
+# to keep the training packages: uv sync removes extras it is not asked for)
+web = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "ruff>=0.9",
+    "httpx2>=2.16",         # fastapi.testclient, for tests/test_web.py
 ]
 
 [build-system]

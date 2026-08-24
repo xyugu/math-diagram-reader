@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>mathvlm viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css" />
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/contrib/auto-render.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>mathvlm viewer</h1>
+      <label>Run <select id="run"></select></label>
+      <label>Show
+        <select id="filter">
+          <option value="all">all samples</option>
+          <option value="diagram">predicted a diagram</option>
+          <option value="invalid">not schema-valid</option>
+          <option value="errors">eval errors</option>
+        </select>
+      </label>
+      <label>Sort
+        <select id="sort">
+          <option value="index">dataset order</option>
+          <option value="f1">structure F1, lowest first</option>
+          <option value="err">point error, highest first</option>
+        </select>
+      </label>
+      <span id="count" class="muted"></span>
+      <span class="spacer"></span>
+      <span class="muted keys">← → sample · Ctrl+Z undo</span>
+    </header>
+
+    <main>
+      <nav id="samples" aria-label="Samples"></nav>
+
+      <section id="input" class="pane">
+        <div class="pane-head">
+          <h2 id="sample-id">Input</h2>
+          <span id="sample-meta" class="muted"></span>
+        </div>
+        <img id="image" alt="Input image" />
+        <h3>Question text <span class="muted">(prediction, as edited)</span></h3>
+        <div id="text" class="question"></div>
+        <div id="gt-text-wrap" hidden>
+          <h3>Ground-truth text</h3>
+          <div id="gt-text" class="question gt"></div>
+        </div>
+        <details>
+          <summary>Raw model output</summary>
+          <pre id="raw"></pre>
+        </details>
+      </section>
+
+      <section id="editor" class="pane">
+        <div class="toolbar">
+          <label class="check"><input type="checkbox" id="show-gt" /> ground truth</label>
+          <button id="undo" title="Ctrl+Z">Undo</button>
+          <button id="reset">Reset</button>
+          <span class="spacer"></span>
+          <button id="render" title="Draw with render.py, the renderer that made the training images">Render (matplotlib)</button>
+          <button id="copy" title="One-line JSON, like a training target">Copy JSON</button>
+          <button id="download" class="primary">Download JSON</button>
+        </div>
+        <div id="stage" class="stage">
+          <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+            <g id="grid" class="grid"></g>
+            <g id="layer"></g>
+          </svg>
+          <div id="labels" class="labels">
+            <div id="label-list"></div>
+            <span id="measure" aria-hidden="true"></span>
+          </div>
+          <div id="empty" class="empty" hidden></div>
+        </div>
+        <div id="readout" class="readout muted">Drag a point to move it; drag a circle's rim to resize it.</div>
+        <div id="status" class="status"></div>
+        <label for="json" class="json-label">Output JSON <span class="muted">(editable; the diagram follows)</span></label>
+        <textarea id="json" spellcheck="false" autocomplete="off"></textarea>
+      </section>
+    </main>
+
+    <dialog id="mpl">
+      <form method="dialog" class="dialog-head">
+        <strong>render.py output</strong>
+        <button>Close</button>
+      </form>
+      <img id="mpl-img" alt="Diagram drawn by render.py" />
+    </dialog>
+  </body>
+</html>
