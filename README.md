@@ -136,6 +136,12 @@ src/mathvlm/
   train/
     data.py               training examples: the inference prompt + target, loss on the target
     run.py                CLI: LoRA fine-tuning (Unsloth + TRL)
+  web/
+    runs.py               saved predictions for the viewer: runs, samples, checking an edit
+    app.py                FastAPI endpoints + the static page
+    serve.py              CLI: serve the viewer on localhost
+    static/diagram.js     render.py's drawing rules ported to SVG: change the two together
+    static/app.js         the page: drag points and circle radii, edit the JSON, download it
 scripts/check_env.py      CUDA/bf16/model smoke test
 scripts/bench_generate.py generation speed benchmark (prefill, decode, batch size)
 tests/                    pytest; test_metrics.py is the most important file here
@@ -163,6 +169,7 @@ outputs -> ~/vlm_outputs  ext4 symlink (gitignored)
 ```bash
 uv sync                      # Phase 1 deps
 uv sync --extra train        # adds unsloth/trl/peft for Phase 2
+uv sync --extra train --extra web   # adds fastapi/uvicorn for the viewer (uv sync drops unlisted extras)
 uv run pytest                # full test suite
 uv run ruff check . --fix    # lint
 uv run ruff format .         # format
@@ -184,6 +191,9 @@ uv run python -m mathvlm.train.run --name <run> --train-split train
 # Phase 3: real textbook diagrams (PGDP5K, 85 MB from Hugging Face, kept on ext4 only)
 uv run python -m mathvlm.real.pgdp5k --raw ~/vlm_data/raw/pgdp5k/extracted/PGDP5K --splits val test
 uv run python -m mathvlm.infer --split pgdp5k/val --adapter outputs/train/sft20k/adapter
+# prediction viewer: each input beside its prediction, drawn in the browser; drag points and
+# circle radii to fix a diagram, then download the JSON (nothing is written server-side)
+uv run --extra web python -m mathvlm.web.serve   # http://127.0.0.1:8000
 ```
 
 Always use `uv run`; do not activate the venv manually or install into another environment.
