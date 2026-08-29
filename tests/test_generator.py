@@ -307,3 +307,18 @@ def test_cli_no_images(tmp_path):
     assert not list(tmp_path.glob("*.png"))
     assert len(list(tmp_path.glob("*.json"))) == 2
     assert math.isfinite(len((tmp_path / "manifest.jsonl").read_text()))
+
+
+def test_unnamed_points_are_numbered_in_reading_order():
+    seen = 0
+    for i in range(300):
+        d = B.make_sample(0, "reading", i).transcription.diagram
+        if d is None:
+            continue
+        unnamed = [n for n in d.points if S.is_unnamed(n)]
+        if len(unnamed) < 2:
+            continue
+        seen += 1
+        by_position = sorted(unnamed, key=lambda n: (d.points[n][1], d.points[n][0]))
+        assert by_position == [f"_P{k + 1}" for k in range(len(unnamed))]
+    assert seen >= 3

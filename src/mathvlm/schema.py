@@ -641,6 +641,45 @@ def diagram_to_obj(d: Diagram) -> dict[str, Any]:
     }
 
 
+def rename_points(d: dict[str, Any], f) -> dict[str, Any]:
+    """A plain-JSON diagram (``diagram_to_obj`` shape) with every point name passed
+    through ``f``. ``f`` must be one-to-one on the diagram's names, or the result is not
+    the same figure."""
+
+    def mark(m: dict) -> dict:
+        if m["type"] == "right_angle":
+            return {**m, "at": f(m["at"]), "rays": [f(r) for r in m["rays"]]}
+        if m["type"] == "arrow":
+            return {**m, "at": f(m["at"]), "from": f(m["from"])}
+        if m["type"] == "equal_angle":
+            return {**m, "angles": [[f(x) for x in a] for a in m["angles"]]}
+        return {**m, "segments": [[f(x) for x in s] for s in m["segments"]]}
+
+    def label(lb: dict) -> dict:
+        key = next(k for k in ("on", "angle", "arc", "at") if k in lb)
+        return {key: lb[key] if key == "at" else [f(x) for x in lb[key]], "text": lb["text"]}
+
+    return {
+        "points": {f(k): v for k, v in d["points"].items()},
+        "segments": [[f(a), f(b)] for a, b in d.get("segments", [])],
+        "circles": [{**c, "center": f(c["center"])} for c in d.get("circles", [])],
+        "marks": [mark(m) for m in d.get("marks", [])],
+        "labels": [label(lb) for lb in d.get("labels", [])],
+    }
+
+
+def renumber_unnamed(d: dict[str, Any]) -> dict[str, Any]:
+    """A plain-JSON diagram with its ``_P`` points renumbered ``_P1, _P2, ...`` in reading
+    order (top to bottom, then left to right; y points down). The numbering is then
+    something a reader of the image can reproduce, which construction order is not.
+    Synthetic ground truth and converted real data both use it."""
+    pts = d["points"]
+    order = sorted((n for n in pts if is_unnamed(n)),
+                   key=lambda n: (pts[n][1], pts[n][0], name_sort_key(n)))  # fmt: skip
+    mapping = {old: f"{UNNAMED_PREFIX}{i + 1}" for i, old in enumerate(order)}
+    return rename_points(d, lambda n: mapping.get(n, n))
+
+
 def output_to_obj(t: Transcription) -> dict[str, Any]:
     return {"text": t.text, "diagram": None if t.diagram is None else diagram_to_obj(t.diagram)}
 

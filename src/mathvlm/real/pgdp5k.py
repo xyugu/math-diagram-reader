@@ -12,7 +12,8 @@ pixel geometry and symbols (``annotations/<split>.json``) and a logic-form descr
 (``our_diagram_logic_forms_annot.json``). Mapping:
 
 - points: ``point_positions``. A point whose name is not drawn as a label in the image
-  (text symbol of class "point") becomes ``_P1, _P2, ...`` in reading order.
+  (text symbol of class "point") becomes ``_P1, _P2, ...`` in reading order
+  (``schema.renumber_unnamed``, as for synthetic data).
 - segments: the drawn lines (``geos.lines``), endpoint to endpoint, i.e. maximal drawn
   segments, our generator's convention.
 - circles: ``geos.circles``; the center is the point at that position, or a new
@@ -57,7 +58,14 @@ from pathlib import Path
 from typing import Any
 
 from mathvlm.config import get_config
-from mathvlm.schema import GRID_MAX, GRID_MIN, consistency_issues, output_to_obj, validate_output
+from mathvlm.schema import (
+    GRID_MAX,
+    GRID_MIN,
+    consistency_issues,
+    output_to_obj,
+    renumber_unnamed,
+    validate_output,
+)
 
 SPLITS = ("train", "val", "test")
 _NAME_RE = re.compile(r"[A-Z](?:'{1,2}|_[0-9]{1,2})?")
@@ -362,14 +370,14 @@ def convert_one(name: str, lf: dict, ann: dict, margin: float = 8.0) -> Converte
 
     obj = {
         "text": "",
-        "diagram": {
+        "diagram": renumber_unnamed({
             "points": {N(k): grid(p) for k, p in pos.items()},
             "segments": [[N(a), N(b)] for a, b in segments],
             "circles": [{"center": N(c), "radius": round(r * scale, 1)} for c, r in circles],
             "marks": out_marks,
             "labels": out_labels,
-        },
-    }
+        }),
+    }  # fmt: skip
     report = validate_output(obj)
     if not report.ok:
         return Converted(name, "invalid", dropped=drop, reason="; ".join(report.errors[:3]),

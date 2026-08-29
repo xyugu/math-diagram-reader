@@ -43,7 +43,14 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from mathvlm.config import EvalConfig, get_config
-from mathvlm.schema import UNNAMED_PREFIX, Diagram, diagram_to_obj, is_unnamed, name_sort_key
+from mathvlm.schema import (
+    UNNAMED_PREFIX,
+    Diagram,
+    diagram_to_obj,
+    is_unnamed,
+    name_sort_key,
+    rename_points,
+)
 
 Points = Mapping[str, Sequence[float]]
 
@@ -316,31 +323,4 @@ def rename_into(pred: Diagram, pairs: Mapping[str, str], gt_names) -> Diagram:
         k += 1
     mapping = {**fresh, **pairs}
 
-    def f(n: str) -> str:
-        return mapping[n]
-
-    obj = diagram_to_obj(pred)
-    renamed_marks = []
-    for m in obj["marks"]:
-        if m["type"] == "right_angle":
-            renamed_marks.append({**m, "at": f(m["at"]), "rays": [f(r) for r in m["rays"]]})
-        elif m["type"] == "arrow":
-            renamed_marks.append({**m, "at": f(m["at"]), "from": f(m["from"])})
-        elif m["type"] == "equal_angle":
-            renamed_marks.append({**m, "angles": [[f(x) for x in a] for a in m["angles"]]})
-        else:
-            renamed_marks.append({**m, "segments": [[f(x) for x in s] for s in m["segments"]]})
-    renamed_labels = []
-    for lb in obj["labels"]:
-        key = next(k for k in ("on", "angle", "arc", "at") if k in lb)
-        target = lb[key] if key == "at" else [f(x) for x in lb[key]]  # free text: no names
-        renamed_labels.append({key: target, "text": lb["text"]})
-    return Diagram.model_validate(
-        {
-            "points": {f(k): v for k, v in obj["points"].items()},
-            "segments": [[f(a), f(b)] for a, b in obj["segments"]],
-            "circles": [{**c, "center": f(c["center"])} for c in obj["circles"]],
-            "marks": renamed_marks,
-            "labels": renamed_labels,
-        }
-    )
+    return Diagram.model_validate(rename_points(diagram_to_obj(pred), mapping.__getitem__))

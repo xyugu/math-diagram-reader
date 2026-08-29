@@ -701,3 +701,16 @@ def test_arc_label_off_every_circle_is_flagged():
     d = v12_diagram()
     d["labels"] = [{"arc": ["B", "H"], "text": "x"}]  # H is not on circle O
     assert any("no circle passes through BH" in i for i in S.consistency_issues(diag(d)))
+
+
+def test_renumber_unnamed_uses_reading_order():
+    d = {"points": {"_P7": [50, 10], "_P2": [80, 40], "A": [10, 40], "_P3": [20, 40]},
+         "segments": [["A", "_P7"], ["_P2", "_P3"]],
+         "marks": [{"type": "arrow", "at": "_P2", "from": "_P3"}],
+         "labels": [{"on": ["A", "_P7"], "text": "5"}]}  # fmt: skip
+    out = S.renumber_unnamed(d)
+    assert out["points"] == {"_P1": [50, 10], "_P3": [80, 40], "A": [10, 40], "_P2": [20, 40]}
+    assert out["segments"] == [["A", "_P1"], ["_P3", "_P2"]]
+    assert out["marks"] == [{"type": "arrow", "at": "_P3", "from": "_P2"}]
+    assert out["labels"] == [{"on": ["A", "_P1"], "text": "5"}]
+    assert ok(output(out)).diagram is not None

@@ -46,6 +46,7 @@ from mathvlm.schema import (
     Transcription,
     consistency_issues,
     output_to_obj,
+    renumber_unnamed,
     to_target_json,
     validate_output,
 )
@@ -116,14 +117,14 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
         composed = compose(scene, rng_text, gcfg)
         obj = {
             "text": composed.text,
-            "diagram": {
+            "diagram": renumber_unnamed({
                 "points": {k: [int(x), int(y)] for k, (x, y) in scene.points.items()},
                 "segments": [list(s) for s in scene.segments],
                 "circles": [{"center": c, "radius": r} for c, r in scene.circles],
                 "marks": scene.marks,
                 "labels": composed.labels,
-            },
-        }
+            }),
+        }  # fmt: skip
         report = validate_output(obj)
         if not report.ok:
             rejections["schema"] += 1
