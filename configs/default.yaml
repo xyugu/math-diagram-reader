@@ -66,6 +66,10 @@ render:
   mark_size_jitter: [3.5, 5.5]
   angle_arc_prob: 0.75 # draw an arc under angle labels
   background: white
+  # textbook color (PGDP5K): blue figure lines, red/orange/magenta marks and value labels
+  colored_prob: 0.35
+  line_inks: ["#1f6fb2", "#0070c0", "#2b5797", "#00796b"]
+  accent_inks: ["#d62728", "#e8590c", "#c2185b", "#e31a1c"]
 
 # Image-level augmentation, applied after rendering (mathvlm.augment). The ground truth
 # is never touched. Style randomness (fonts, line widths, ink) lives in render.sample_style.
@@ -82,6 +86,10 @@ augment:
   paper_tints: [[255, 255, 255], [250, 247, 240], [245, 240, 228], [238, 238, 234]]
   brightness_range: [0.85, 1.12]
   contrast_range: [0.85, 1.15]
+  # small screenshots (PGDP5K's median image is ~380x270; ours ~550x700): this share of
+  # augmented pages is scaled down instead of by scale_range
+  small_prob: 0.3
+  small_scale_range: [0.5, 0.85]
 
 generate:
   # relative weights over scene families

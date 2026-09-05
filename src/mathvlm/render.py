@@ -109,6 +109,9 @@ class RenderStyle:
     mark_size: float  # grid units
     angle_arcs: bool  # arc under angle labels
     background: str
+    line_ink: str  # segments, circles, arrowheads, point dots
+    mark_ink: str  # right-angle squares, ticks, chevrons, angle arcs
+    label_ink: str  # value labels (lengths, angles, arcs, free text)
 
 
 def default_style() -> RenderStyle:
@@ -126,6 +129,9 @@ def default_style() -> RenderStyle:
         mark_size=_RC.mark_size,
         angle_arcs=True,
         background=_RC.background,
+        line_ink=_RC.ink,
+        mark_ink=_RC.ink,
+        label_ink=_RC.ink,
     )
 
 
@@ -133,10 +139,11 @@ def sample_style(rng: np.random.Generator) -> RenderStyle:
     """Draw a random style. The draw order is fixed, so equal RNG states give equal
     styles; this is the only source of randomness in the renderer."""
     fontset = _RC.fontsets[int(rng.integers(len(_RC.fontsets)))]
-    return RenderStyle(
+    ink = _RC.inks[int(rng.integers(len(_RC.inks)))]
+    style = dict(
         fontset=fontset,
         text_family=_RC.text_family[fontset],
-        ink=_RC.inks[int(rng.integers(len(_RC.inks)))],
+        ink=ink,
         line_width=float(rng.uniform(*_RC.line_width_jitter)),
         point_dots=bool(rng.random() < _RC.point_dot_prob),
         dot_size=float(rng.uniform(*_RC.point_marker_size_jitter)),
@@ -147,6 +154,14 @@ def sample_style(rng: np.random.Generator) -> RenderStyle:
         angle_arcs=bool(rng.random() < _RC.angle_arc_prob),
         background=_RC.background,
     )
+    # Drawn after every older field, so adding colors left those draws unchanged.
+    line_ink = mark_ink = label_ink = ink
+    if rng.random() < _RC.colored_prob:  # textbook color: blue figure, red/orange labels
+        line_ink = _RC.line_inks[int(rng.integers(len(_RC.line_inks)))]
+        accent = _RC.accent_inks[int(rng.integers(len(_RC.accent_inks)))]
+        mark_ink = accent if rng.random() < 0.6 else line_ink
+        label_ink = accent if rng.random() < 0.5 else ink
+    return RenderStyle(**style, line_ink=line_ink, mark_ink=mark_ink, label_ink=label_ink)
 
 
 def _rc(style: RenderStyle):
@@ -267,11 +282,11 @@ class _Painter:
 
     # -- primitives -------------------------------------------------------
 
-    def line(self, xs, ys, lw: float | None = None, z: int = 2) -> None:
+    def line(self, xs, ys, lw: float | None = None, z: int = 2, color: str | None = None) -> None:
         self.ax.plot(
             xs,
             ys,
-            color=self.s.ink,
+            color=color or self.s.line_ink,
             lw=self.s.line_width if lw is None else lw,
             solid_capstyle="round",
             solid_joinstyle="round",
@@ -288,6 +303,7 @@ class _Painter:
             [v[0] + r * math.cos(t) for t in ts],
             [v[1] + r * math.sin(t) for t in ts],
             lw=self.mark_lw(),
+            color=self.s.mark_ink,
             z=3,
         )
 
@@ -296,7 +312,7 @@ class _Painter:
         where they land on a line (e.g. an angle label on a median)."""
         s, pm = _safe(s, self.s)
         self.ax.text(
-            x, y, s, ha="center", va="center", fontsize=fontsize, color=self.s.ink,
+            x, y, s, ha="center", va="center", fontsize=fontsize, color=self.s.label_ink,
             parse_math=pm, zorder=6, clip_on=False,
             bbox={"boxstyle": "square,pad=0.08", "facecolor": self.s.background,
                   "edgecolor": "none"},
@@ -324,7 +340,7 @@ class _Painter:
                     self.P[c.center],
                     float(c.radius),
                     fill=False,
-                    edgecolor=self.s.ink,
+                    edgecolor=self.s.line_ink,
                     lw=self.s.line_width,
                     zorder=2,
                 )
@@ -351,7 +367,7 @@ class _Painter:
         for m in self.d.marks:
             if isinstance(m, ArrowMark) and (tri := self.arrowhead(m)) is not None:
                 self.ax.fill(
-                    [p[0] for p in tri], [p[1] for p in tri], color=self.s.ink, lw=0, zorder=3
+                    [p[0] for p in tri], [p[1] for p in tri], color=self.s.line_ink, lw=0, zorder=3
                 )
                 self.obstacles[m.at].append(_ang(_unit(*_sub(self.P[m.from_], self.P[m.at]))))
 
@@ -378,7 +394,13 @@ class _Painter:
             p1 = (v[0] + side * u1[0], v[1] + side * u1[1])
             p2 = (p1[0] + side * u2[0], p1[1] + side * u2[1])
             p3 = (v[0] + side * u2[0], v[1] + side * u2[1])
-            self.line([p1[0], p2[0], p3[0]], [p1[1], p2[1], p3[1]], lw=self.mark_lw(), z=3)
+            self.line(
+                [p1[0], p2[0], p3[0]],
+                [p1[1], p2[1], p3[1]],
+                lw=self.mark_lw(),
+                color=self.s.mark_ink,
+                z=3,
+            )
             b = self._bisector(v, e1, e2)
             if b is not None:
                 self.obstacles[m.at].append(_ang(b))
@@ -436,6 +458,7 @@ class _Painter:
                             [c[0] - n[0] * half, c[0] + n[0] * half],
                             [c[1] - n[1] * half, c[1] + n[1] * half],
                             lw=self.mark_lw(),
+                            color=self.s.mark_ink,
                             z=3,
                         )
                     else:
@@ -444,7 +467,11 @@ class _Painter:
                         w1 = (back[0] + n[0] * half * 0.7, back[1] + n[1] * half * 0.7)
                         w2 = (back[0] - n[0] * half * 0.7, back[1] - n[1] * half * 0.7)
                         self.line(
-                            [w1[0], tip[0], w2[0]], [w1[1], tip[1], w2[1]], lw=self.mark_lw(), z=3
+                            [w1[0], tip[0], w2[0]],
+                            [w1[1], tip[1], w2[1]],
+                            lw=self.mark_lw(),
+                            color=self.s.mark_ink,
+                            z=3,
                         )
                 cursor += w + gap
 
@@ -497,6 +524,7 @@ class _Painter:
                         [v[0] + (r - h) * c, v[0] + (r + h) * c],
                         [v[1] + (r - h) * sn, v[1] + (r + h) * sn],
                         lw=self.mark_lw(),
+                        color=self.s.mark_ink,
                         z=3,
                     )
                 self.arc_radius[canonical_angle(a)] = r + h
@@ -661,7 +689,7 @@ class _Painter:
         for name, p in self.P.items():
             if (self.s.point_dots or name in centers) and name not in self.arrow_tips:
                 self.ax.plot(
-                    [p[0]], [p[1]], "o", ms=self.s.dot_size, color=self.s.ink, zorder=5,
+                    [p[0]], [p[1]], "o", ms=self.s.dot_size, color=self.s.line_ink, zorder=5,
                     markeredgewidth=0,
                 )  # fmt: skip
             if is_unnamed(name):

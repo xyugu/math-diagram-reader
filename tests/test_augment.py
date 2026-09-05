@@ -46,7 +46,9 @@ def test_sampled_params_stay_in_the_configured_ranges():
         if p.is_identity:
             continue
         assert abs(p.rotation_deg) <= AC.rotation_deg
-        assert AC.scale_range[0] <= p.scale <= AC.scale_range[1]
+        assert (AC.scale_range[0] <= p.scale <= AC.scale_range[1]) or (
+            AC.small_scale_range[0] <= p.scale <= AC.small_scale_range[1]
+        )
         assert AC.blur_sigma_range[0] <= p.blur_sigma <= AC.blur_sigma_range[1]
         assert AC.gaussian_noise_std[0] <= p.noise_std <= AC.gaussian_noise_std[1]
         assert AC.paper_texture_strength[0] <= p.paper_strength <= AC.paper_texture_strength[1]
@@ -61,6 +63,9 @@ def test_sampled_params_stay_in_the_configured_ranges():
         len(draws) - len(clean)
     )
     assert abs(jpeg_share - AC.jpeg_prob) < 0.1
+    augmented = [p for p in draws if not p.is_identity]
+    small = sum(p.scale < AC.scale_range[0] for p in augmented) / len(augmented)
+    assert abs(small - AC.small_prob) < 0.1
 
 
 def test_disabled_config_gives_identity(monkeypatch):

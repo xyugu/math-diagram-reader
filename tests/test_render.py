@@ -404,3 +404,40 @@ def test_degenerate_v12_prediction_renders():
         "labels": [{"arc": ["A", "B"], "text": "\\frac{"}, {"at": [0, 100], "text": "x"}],
     })  # fmt: skip
     R.render_diagram(d)
+
+
+# ---------------------------------------------------------------------------
+# Color
+# ---------------------------------------------------------------------------
+
+
+def test_default_style_is_one_ink():
+    st = R.default_style()
+    assert st.line_ink == st.mark_ink == st.label_ink == st.ink
+
+
+def test_some_sampled_styles_are_colored_and_the_rest_one_ink():
+    styles = [R.sample_style(sample_rng(0, "color", i)) for i in range(300)]
+    colored = [s for s in styles if s.line_ink != s.ink]
+    assert abs(len(colored) / len(styles) - RC.colored_prob) < 0.08
+    assert all(s.line_ink in RC.line_inks for s in colored)
+    assert all(s.mark_ink in (*RC.accent_inks, s.line_ink) for s in colored)
+    plain = [s for s in styles if s.line_ink == s.ink]
+    assert all(s.mark_ink == s.label_ink == s.ink for s in plain)
+
+
+def test_colored_style_draws_lines_in_color(monkeypatch):
+    from dataclasses import replace
+
+    st = replace(no_dots(), line_ink="#0070c0", mark_ink="#d62728", label_ink="#d62728")
+    img = np.asarray(R.render_diagram(diagram(HLINE), st))
+    x, y = (int(round(v)) for v in R.grid_to_pixel(50, 20, (0, 0, img.shape[1])))
+    r, g, b = (int(c) for c in img[y, x])
+    assert b > 150 and r < 80  # blue, not black
+
+
+def test_disabling_color_gives_one_ink(monkeypatch):
+    monkeypatch.setattr(R, "_RC", RC.model_copy(update={"colored_prob": 0.0}))
+    for i in range(30):
+        s = R.sample_style(sample_rng(0, "nocolor", i))
+        assert s.line_ink == s.mark_ink == s.label_ink == s.ink

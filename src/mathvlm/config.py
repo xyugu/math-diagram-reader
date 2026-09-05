@@ -86,6 +86,9 @@ class RenderConfig(_Base):
     mark_size_jitter: tuple[float, float]
     angle_arc_prob: float
     background: str
+    colored_prob: float
+    line_inks: list[str]
+    accent_inks: list[str]
 
 
 class AugmentConfig(_Base):
@@ -101,6 +104,8 @@ class AugmentConfig(_Base):
     paper_tints: list[tuple[int, int, int]]
     brightness_range: tuple[float, float]
     contrast_range: tuple[float, float]
+    small_prob: float
+    small_scale_range: tuple[float, float]
 
 
 class QuestionConfig(_Base):

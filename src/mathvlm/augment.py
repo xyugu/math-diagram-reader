@@ -75,6 +75,9 @@ def sample_params(rng: np.random.Generator) -> AugmentParams:
     tint = tuple(_AC.paper_tints[int(rng.integers(len(_AC.paper_tints)))])
     brightness = float(rng.uniform(*_AC.brightness_range))
     contrast = float(rng.uniform(*_AC.contrast_range))
+    # drawn last, so adding it left every earlier draw unchanged
+    if rng.random() < _AC.small_prob:
+        scale = float(rng.uniform(*_AC.small_scale_range))
     return AugmentParams(
         rotation_deg=rotation,
         scale=scale,
