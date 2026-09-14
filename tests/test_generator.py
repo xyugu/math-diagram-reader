@@ -223,8 +223,8 @@ def test_algebraic_labels_match_their_partner():
     found = 0
     for s in diagram_samples():
         u = s.meta.get("unknown", {})
-        if u.get("type") != "algebraic":
-            continue
+        if u.get("type") != "algebraic" or s.meta.get("diagram_only"):
+            continue  # a figure-only page drops the question, and with it the partner
         found += 1
         m = re.fullmatch(r"\(?(\d+)([xy])([+-]\d+)?\)?(\^\\circ)?", u["label"])
         assert m, u["label"]

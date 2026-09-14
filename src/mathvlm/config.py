@@ -121,6 +121,17 @@ class QuestionConfig(_Base):
     two_part_prob: float
 
 
+class RealismConfig(_Base):
+    ray_prob: float
+    max_rays: int
+    ray_length: tuple[float, float]
+    diagram_only_prob: float
+    hide_names: dict[str, float]
+    hide_some_prob: float
+    numbered_angles_prob: float
+    numbered_min_deg: float
+
+
 class GenerateConfig(_Base):
     families: dict[str, float]
     no_diagram_fraction: float
@@ -136,6 +147,7 @@ class GenerateConfig(_Base):
     prime_name_prob: float
     label_schemes: dict[str, float]
     questions: QuestionConfig
+    realism: RealismConfig
 
 
 class EvalConfig(_Base):

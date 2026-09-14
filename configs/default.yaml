@@ -126,6 +126,17 @@ generate:
     algebraic_prob: 0.3 # x appears in an expression, e.g. 2x+1, equal to a marked partner
     family_ask_prob: 0.3 # ask for area / perimeter / radius / a proof instead
     two_part_prob: 0.15 # (a) ... (b) ...
+  # Real-textbook conventions the base families lack (generate/realism.py), measured
+  # against PGDP5K: unlabeled line ends, rays, figure-only pages, numbered angles.
+  realism:
+    ray_prob: 0.35 # extend 1..max_rays drawn segments into rays with arrowheads
+    max_rays: 3
+    ray_length: [0.16, 0.32] # fraction of the figure's size
+    diagram_only_prob: 0.35 # the page shows the figure alone: ground-truth text is ""
+    hide_names: {none: 0.4, some: 0.35, all: 0.25} # point letters on figure-only pages
+    hide_some_prob: 0.5 # per point, for "some"
+    numbered_angles_prob: 0.4 # number the angles around one vertex (figure-only pages)
+    numbered_min_deg: 25.0 # narrower sectors are not numbered
 
 eval:
   # similarity alignment for the geometry metric: translation + uniform scale only.

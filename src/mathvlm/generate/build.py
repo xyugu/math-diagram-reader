@@ -40,6 +40,7 @@ from mathvlm.augment import apply as apply_augment
 from mathvlm.augment import sample_params as sample_augment
 from mathvlm.config import get_config, sample_seed
 from mathvlm.generate.questions import compose, text_only_question
+from mathvlm.generate.realism import add_rays, hide_names, number_angles
 from mathvlm.generate.scenes import BUILDERS, Namer, chance, to_grid, validate_scene, wpick
 from mathvlm.render import RenderStyle, contact_sheet, render_page, sample_style
 from mathvlm.schema import (
@@ -86,15 +87,16 @@ class Sample:
 
 
 def _streams(seed: int) -> tuple[np.random.Generator, ...]:
-    """(scene, text, style, augmentation). Append new streams at the end only."""
-    return tuple(np.random.default_rng(s) for s in np.random.SeedSequence(seed).spawn(4))
+    """(scene, text, style, augmentation, realism). Append new streams at the end only."""
+    return tuple(np.random.default_rng(s) for s in np.random.SeedSequence(seed).spawn(5))
 
 
 def make_sample(master_seed: int, split: str, index: int) -> Sample:
     """Generate one sample. Pure function of (master_seed, split, index)."""
     gcfg = get_config().generate
     seed = sample_seed(master_seed, split, index)
-    rng_scene, rng_text, rng_style, rng_aug = _streams(seed)
+    rng_scene, rng_text, rng_style, rng_aug, rng_real = _streams(seed)
+    rcfg = gcfg.realism
     sid = f"{split}_{index:06d}"
 
     if chance(rng_scene, gcfg.no_diagram_fraction):
@@ -109,22 +111,32 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
     rejections: Counter = Counter()
     for attempt in range(1, gcfg.max_rejection_attempts + 1):
         namer = Namer(rng_scene, gcfg)
-        scene = to_grid(BUILDERS[family](rng_scene, namer, gcfg), rng_scene, gcfg)
+        raw = BUILDERS[family](rng_scene, namer, gcfg)
+        n_rays = add_rays(raw, rng_real, namer, rcfg)
+        scene = to_grid(raw, rng_scene, gcfg)
         problems = validate_scene(scene, gcfg)
         if problems:
             rejections[problems[0].split(" ")[0]] += 1
             continue
         composed = compose(scene, rng_text, gcfg)
-        obj = {
-            "text": composed.text,
-            "diagram": renumber_unnamed({
-                "points": {k: [int(x), int(y)] for k, (x, y) in scene.points.items()},
-                "segments": [list(s) for s in scene.segments],
-                "circles": [{"center": c, "radius": r} for c, r in scene.circles],
-                "marks": scene.marks,
-                "labels": composed.labels,
-            }),
-        }  # fmt: skip
+        diagram = {
+            "points": {k: [int(x), int(y)] for k, (x, y) in scene.points.items()},
+            "segments": [list(s) for s in scene.segments],
+            "circles": [{"center": c, "radius": r} for c, r in scene.circles],
+            "marks": list(scene.marks),
+            "labels": list(composed.labels),
+        }
+        text = composed.text
+        real_meta: dict = {"rays": n_rays, "diagram_only": False}
+        if chance(rng_real, rcfg.diagram_only_prob):  # the figure alone, as in PGDP5K
+            text = ""
+            real_meta["diagram_only"] = True
+            real_meta["numbered_angles"] = number_angles(diagram, rng_real, rcfg)
+            real_meta["hidden_names"] = hide_names(diagram, rng_real, rcfg)
+            # with the question gone, only the givens written on the figure remain
+            real_meta["givens"] = [{**g, "in_text": False}
+                                   for g in composed.meta.get("givens", []) if g["in_figure"]]  # fmt: skip
+        obj = {"text": text, "diagram": renumber_unnamed(diagram)}
         report = validate_output(obj)
         if not report.ok:
             rejections["schema"] += 1
@@ -137,6 +149,7 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
             "rejections": dict(rejections),
             "label_scheme": namer.scheme,
             **composed.meta,
+            **real_meta,
         }
         return Sample(sid, split, index, seed, family, scene.kind, report.value,
                       sample_style(rng_style), sample_augment(rng_aug), meta)  # fmt: skip
