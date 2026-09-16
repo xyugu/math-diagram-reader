@@ -115,6 +115,7 @@ def train(cfg: Config, args: argparse.Namespace) -> Path:
 
     tc = cfg.train
     ov = tc.overfit
+    git = _git()  # the code that trains, not whatever is checked out when it finishes
     out = cfg.paths.resolved("outputs_dir") / "train" / args.name
     adapter_dir = out / "adapter"
     if adapter_dir.exists() and not (args.resume or args.overwrite):
@@ -247,7 +248,7 @@ def train(cfg: Config, args: argparse.Namespace) -> Path:
         "samples_per_s": round(result.metrics.get("train_samples_per_second", 0.0), 2),
         "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2),
         "gpu": torch.cuda.get_device_name(0),
-        "git": _git(),
+        "git": git,
         "versions": _versions(),
     }
     (out / "run.json").write_text(json.dumps(meta, indent=2) + "\n")
