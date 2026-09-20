@@ -64,22 +64,30 @@ errors are a label's value put on a neighbouring angle or segment, and point imp
 
 PGDP5K val (500 diagram-only images from textbooks, converted by `mathvlm.real.pgdp5k`;
 ground-truth text is `""`; arrow marks are ignored because PGDP5K does not annotate them).
+`sft_v2`: same training as `sft20k`, on 20k samples from the realism generator
+(`generate/realism.py`: rays with arrowheads, figure-only pages, hidden point names,
+numbered angles; textbook colors and small screenshots), `outputs/train/sft_v2/`.
 
-| Metric | Zero-shot | sft20k |
-|--------|-----------|--------|
-| JSON parse rate / schema valid rate | 90.0% / 88.4% | 95.0% / 55.4% |
-| Diagram detection accuracy | 1.0% | 94.2% |
-| Structure F1, all samples (strict) | 0.000 | 0.480 |
-| Structure F1 where the output is valid (277) | n/a | 0.699 |
-| F1 points / segments / marks / labels | 0 / 0 / 0 / 0 | 0.59 / 0.49 / 0.26 / 0.29 |
-| Point error, mean / median (grid units) | n/a | 5.18 / 2.46 |
+| Metric | Zero-shot | sft20k | sft_v2 |
+|--------|-----------|--------|--------|
+| JSON parse rate / schema valid rate | 90.0% / 88.4% | 95.0% / 55.4% | 99.8% / 84.8% |
+| Diagram detection accuracy | 1.0% | 94.2% | 99.6% |
+| Text exact (`""`) | 0% | 0% | 99.4% |
+| Structure F1, all samples (strict) | 0.000 | 0.480 | 0.659 |
+| F1 points / segments / marks / labels | 0 / 0 / 0 / 0 | 0.59 / 0.49 / 0.26 / 0.29 | 0.84 / 0.64 / 0.39 / 0.41 |
+| Mean per-diagram F1: lettered (291) / no letters (209) | - | 0.67 / 0.02 | 0.76 / 0.48 |
+| Point error, mean / median (grid units) | n/a | 5.18 / 2.46 | 5.83 / 2.68 |
 
-The synthetic-only model transfers partly. Most of the loss is conventions the generator
-never showed it: 53% of PGDP5K points are unlabeled line ends and intersections, and the
-model names them `bottom_left`, `1`, `B1` (schema-invalid) instead of `_P<n>`; it never saw a
-page without question text, so it writes a description instead of `""`; rays with
-arrowheads, figures with no letters, colored figures and several labeled angles at one
-vertex are absent from its training data.
+On the synthetic val split `sft_v2` holds `sft20k`'s scores (structure F1 0.984 vs 0.989,
+point error median 1.51 vs 1.51), and on `val_v2` (realism generator) it scores 0.922 vs
+0.745.
+
+What sft20k got wrong on real figures was mostly conventions its training data never
+showed: 42% of PGDP5K val diagrams carry no letters at all (sft20k F1 ~0.02 on them), 53% of
+points are unlabeled line ends and intersections (sft20k named them `bottom_left`, `1`, `B1`,
+schema-invalid), and it never saw a page without question text. `sft_v2` fixes most of
+that; what remains is mainly marks and labels (F1 ~0.4), point precision on real images,
+line-only figures (17% of PGDP5K, no generator family yet) and arc labels (4% of labels).
 
 ## Design invariants
 
