@@ -154,6 +154,7 @@ class EvalConfig(_Base):
     allow_rotation: bool
     allow_reflection: bool
     match_max_dist: float
+    angle_ray_tol_deg: float
     align_inlier_dist: float
     align_max_iters: int
     align_hypotheses_kept: int

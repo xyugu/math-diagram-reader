@@ -861,3 +861,68 @@ def test_unannotated_mark_types_are_ignored_on_both_sides():
     assert cnt(r, "strict", "marks.arrow") == (0, 0, 0)
     r = M.evaluate_example(tr(V12), js(gt), unannotated=["arrow"])  # and missing ones too
     assert cnt(r, "strict", "marks") == (1, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Angles compared by their rays; units in labels
+# ---------------------------------------------------------------------------
+
+# Vertex B with rays to A (east) and to C (up-right); D is the midpoint of BC.
+RAYS = {
+    "points": {"A": [80, 80], "B": [20, 80], "C": [60, 20], "D": [40, 50], "X": [70, 50]},
+    "segments": [["B", "A"], ["B", "C"], ["A", "X"]],
+}
+
+
+def rays_with(**parts) -> dict:
+    return {**copy.deepcopy(RAYS), **parts}
+
+
+@pytest.mark.parametrize(
+    ("pred_angle", "match"),
+    [
+        (["A", "B", "C"], True),
+        (["A", "B", "D"], True),  # D lies on ray BC: the same angle
+        (["D", "B", "A"], True),
+        (["A", "B", "X"], False),  # BX is another ray
+        (["C", "D", "A"], False),  # another vertex
+    ],
+)
+def test_angle_labels_match_by_rays(pred_angle, match):
+    gt = rays_with(labels=[{"angle": ["A", "B", "C"], "text": "40^\\circ"}])
+    pred = rays_with(labels=[{"angle": pred_angle, "text": "40^\\circ"}])
+    for v in M.VARIANTS:
+        assert cnt(ev(gt, pred), v, "labels") == ((1, 0, 0) if match else (0, 1, 1))
+
+
+def test_right_angle_and_equal_angle_marks_match_by_rays():
+    gt = rays_with(marks=[{"type": "right_angle", "at": "B", "rays": ["A", "C"]},
+                          {"type": "equal_angle", "angles": [["A", "B", "C"], ["B", "A", "X"]]}])  # fmt: skip
+    pred = rays_with(marks=[{"type": "right_angle", "at": "B", "rays": ["D", "A"]},
+                            {"type": "equal_angle", "angles": [["A", "B", "D"], ["X", "A", "B"]]}])  # fmt: skip
+    r = ev(gt, pred)
+    assert cnt(r, "strict", "marks.right_angle") == (1, 0, 0)
+    assert cnt(r, "strict", "marks.equal_angle") == (1, 0, 0)
+
+
+def test_a_point_beyond_on_the_same_ray_names_the_same_angle():
+    gt = rays_with(labels=[{"angle": ["A", "B", "D"], "text": "1"}])
+    pred = rays_with(labels=[{"angle": ["A", "B", "C"], "text": "1"}])  # C is past D
+    assert cnt(ev(gt, pred), "strict", "labels") == (1, 0, 0)
+
+
+@pytest.mark.parametrize(
+    ("pred_text", "match"),
+    [
+        ("6", True),
+        ("6 ft", True),
+        ("6\\text{ cm}", True),
+        ("6 in.", True),
+        ("6m", False),
+        ("7 ft", False),
+    ],
+)
+def test_a_trailing_unit_does_not_change_a_label(pred_text, match):
+    gt = rays_with(labels=[{"on": ["A", "B"], "text": "6"}])
+    pred = rays_with(labels=[{"on": ["A", "B"], "text": pred_text}])
+    assert cnt(ev(gt, pred), "strict", "labels") == ((1, 0, 0) if match else (0, 1, 1))

@@ -145,6 +145,7 @@ eval:
   allow_rotation: false
   allow_reflection: false
   match_max_dist: 25.0 # grid units, after alignment; a farther point pair is not a match
+  angle_ray_tol_deg: 6.0 # two points on one ray from a vertex name the same angle
   align_inlier_dist: 5.0 # grid units; alignment fits these points and caps the cost of the rest
   align_max_iters: 10 # match/refit rounds per starting transform (converges in 2-3)
   align_hypotheses_kept: 8 # best two-point hypotheses refined, besides the global starts

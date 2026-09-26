@@ -22,6 +22,9 @@ points all a little off: the alignment follows the consistent majority instead o
 spreading one point's error over the whole figure. Names play no part, so a prediction
 with every letter wrong still aligns.
 
+Angles are compared by their rays (``ray_keys``): an angle named through any point on
+each of its rays is the same angle.
+
 Two correspondences, both under that one alignment:
 
 - ``match_geometric``: all points by Hungarian assignment on aligned coordinates,
@@ -302,6 +305,40 @@ def match_strict(
     pu = sorted((n for n in pred if is_unnamed(n)), key=name_sort_key)
     up, ud = _hungarian(gt, gu, pred, pu, T, cfg.match_max_dist)
     return Correspondence({**pairs, **up}, {**dist, **ud})
+
+
+def ray_keys(gt: Diagram, pred: Diagram, T: Similarity, tol_deg: float):
+    """``ray(v, e)``: the GT point nearest ``v`` in the direction of ``e`` (within
+    ``tol_deg``), else ``e`` itself. Angles are then compared by their rays, not by which
+    points happen to name them: with D on ray BC, angle ABD is angle ABC.
+
+    ``pred`` must already use GT names for matched points (``rename_into``). Positions:
+    GT coordinates for GT names, aligned predicted coordinates for the rest."""
+    gpos = {k: (float(x), float(y)) for k, (x, y) in gt.points.items()}
+    ppos = {k: tuple(T.apply(v)[0]) for k, v in pred.points.items()}
+    tol = math.radians(tol_deg)
+    cache: dict[tuple[str, str], str] = {}
+
+    def pos(n: str):
+        return gpos[n] if n in gpos else ppos[n]
+
+    def ray(v: str, e: str) -> str:
+        if v not in gpos or (v, e) in cache:
+            return cache.get((v, e), e)
+        (vx, vy), (ex, ey) = pos(v), pos(e)
+        t = math.atan2(ey - vy, ex - vx)
+        best, best_d = e, math.inf
+        for g, (gx, gy) in gpos.items():
+            d = math.hypot(gx - vx, gy - vy)
+            if g == v or d < 1e-9:
+                continue
+            diff = abs((math.atan2(gy - vy, gx - vx) - t + math.pi) % (2 * math.pi) - math.pi)
+            if diff <= tol and d < best_d:
+                best, best_d = g, d
+        cache[(v, e)] = best
+        return best
+
+    return ray
 
 
 def rename_into(pred: Diagram, pairs: Mapping[str, str], gt_names) -> Diagram:

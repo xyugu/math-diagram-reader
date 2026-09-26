@@ -272,12 +272,26 @@ def normalize_text(s: str) -> str:
     return "\n\n".join(p for p in (re.sub(r"\s+", " ", p).strip() for p in paragraphs) if p)
 
 
+_UNIT_RE = re.compile(
+    r"^(?P<value>.*?\S)(?:\s*\\(?:text|mathrm)\{\s*|\s+)"
+    r"(?:in|ft|cm|mm|m|km|yd|mi|units?)\.?\s*\}?$"
+)
+
+
 def normalize_label(text: str) -> str:
     """Normalize a diagram label. Labels are math without delimiters (``45^\\circ``); a
-    prediction that wraps one in ``$...$`` means the same thing."""
+    prediction that wraps one in ``$...$`` means the same thing.
+
+    A trailing length unit set off by a space or ``\\text{}`` is dropped (``6 ft``,
+    ``10 in.``, ``8\\text{ cm}`` -> the number): units are presentation, and datasets
+    differ in whether they record them (PGDP5K does not). ``4m`` without a space is kept:
+    it may be 4 times m."""
     s = _unicode(text).strip()
     if len(s) >= 2 and s.startswith("$") and s.endswith("$"):
         s = s.strip("$")
+    m = _UNIT_RE.match(s)
+    if m:
+        s = m.group("value")
     return normalize_math(s)
 
 

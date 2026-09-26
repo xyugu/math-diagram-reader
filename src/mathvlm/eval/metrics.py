@@ -20,7 +20,9 @@ Per example (``evaluate_example``)
   category is compared as a multiset of canonical forms (schema.canonicalize), so list
   order and endpoint order never matter. Circles match by center (radius is geometry);
   labels match on target *and* normalized text (free text, attached to nothing, on its
-  text alone); arrowheads match on (tip, tail); other marks match whole (an equal_length
+  text alone; a trailing unit is ignored); angles in labels and marks match by their
+  rays, so an angle named through another point on the same ray is the same angle;
+  arrowheads match on (tip, tail); other marks match whole (an equal_length
   group with one segment missing is one false positive plus one false negative). A
   prediction that is missing, invalid or null counts as an empty diagram, so failing on
   hard examples never helps.
@@ -50,6 +52,7 @@ from mathvlm.eval.matching import (
     align,
     match_geometric,
     match_strict,
+    ray_keys,
     rename_into,
 )
 from mathvlm.eval.normalize import ned, normalize_label, normalize_text
@@ -107,18 +110,38 @@ class Counts:
 # ---------------------------------------------------------------------------
 
 
-def _multisets(d: Diagram | None) -> dict[str, Counter]:
-    """Each category as a multiset of canonical, order-free keys."""
+def _rays_of(angle: tuple, ray) -> tuple:
+    """A canonical angle ``(vertex, {end, end})`` with each end replaced by its ray."""
+    v, ends = angle
+    return (v, frozenset(ray(v, e) for e in ends))
+
+
+def _with_rays(item: tuple, ray) -> tuple:
+    """A canonical mark or label with every angle in it expressed by rays."""
+    if item[0] == "angle":  # label: ("angle", angle, text)
+        return ("angle", _rays_of(item[1], ray), *item[2:])
+    if item[0] == "right_angle":
+        return ("right_angle", _rays_of(item[1], ray))
+    if item[0] == "equal_angle":
+        return ("equal_angle", frozenset(_rays_of(a, ray) for a in item[1]))
+    return item
+
+
+def _multisets(d: Diagram | None, ray=None) -> dict[str, Counter]:
+    """Each category as a multiset of canonical, order-free keys. With ``ray``
+    (``matching.ray_keys``), angles are keyed by their rays rather than their names."""
     out = {c: Counter() for c in KEYS}
     if d is None:
         return out
     cd = canonicalize(d)
+    marks = [_with_rays(m, ray) for m in cd.marks] if ray else list(cd.marks)
+    labels = [_with_rays(lb, ray) for lb in cd.labels] if ray else list(cd.labels)
     out["points"] = Counter(cd.points.keys())
     out["segments"] = Counter(cd.segments)
     out["circles"] = Counter(c.center for c in d.circles)
-    out["marks"] = Counter(cd.marks)
-    out["labels"] = Counter(_label_key(lb) for lb in cd.labels)
-    for m in cd.marks:
+    out["marks"] = Counter(marks)
+    out["labels"] = Counter(_label_key(lb) for lb in labels)
+    for m in marks:
         out[f"marks.{m[0]}"][m] += 1
     return out
 
@@ -131,10 +154,11 @@ def _label_key(lb: tuple) -> tuple:
     return (*lb[:-1], normalize_label(lb[-1]))
 
 
-def structure_counts(gt: Diagram | None, pred: Diagram | None) -> dict[str, Counts]:
+def structure_counts(gt: Diagram | None, pred: Diagram | None, ray=None) -> dict[str, Counts]:
     """Counts per category. ``pred`` must already use GT names for matched points
-    (``matching.rename_into``); ``None`` on either side is an empty diagram."""
-    G, P = _multisets(gt), _multisets(pred)
+    (``matching.rename_into``); ``None`` on either side is an empty diagram. ``ray``:
+    compare angles by their rays (``matching.ray_keys``)."""
+    G, P = _multisets(gt, ray), _multisets(pred, ray)
     return {
         c: Counts(
             sum((G[c] & P[c]).values()),
@@ -314,9 +338,11 @@ def evaluate_example(
             "strict": match_strict(gd.points, pd.points, T, cfg),
             "geometric": match_geometric(gd.points, pd.points, T, cfg),
         }
-        structure = {
-            v: structure_counts(gd, rename_into(pd, corr[v].pairs, gd.points)) for v in VARIANTS
-        }
+        structure = {}
+        for v in VARIANTS:
+            renamed = rename_into(pd, corr[v].pairs, gd.points)
+            ray = ray_keys(gd, renamed, T, cfg.angle_ray_tol_deg)
+            structure[v] = structure_counts(gd, renamed, ray)
         geo = geometry(gd, pd, T, corr["geometric"], corr["strict"])
         pairs = {v: dict(sorted(corr[v].pairs.items())) for v in VARIANTS}
     elif gd is not None or pd is not None:

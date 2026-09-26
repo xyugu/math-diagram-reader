@@ -135,3 +135,18 @@ def test_ned():
     assert ned("", "abc") == 1.0
     assert ned("kitten", "sitting") == pytest.approx(3 / 7)
     assert ned("abcd", "abce") == ned("abce", "abcd") == pytest.approx(1 / 4)
+
+
+@pytest.mark.parametrize(
+    ("label", "value"),
+    [("6 ft", "6"), ("10 in.", "10"), ("8\\text{ cm}", "8"), ("2 \\mathrm{yd}", "2"),
+     ("3\\sqrt{2} cm", "3\\sqrt{2}"), ("12 units", "12"), ("2x + 1 cm", "2x+1")],
+)  # fmt: skip
+def test_label_units_are_dropped(label, value):
+    assert normalize_label(label) == value
+
+
+@pytest.mark.parametrize("label", ["4m", "m", "5a+12", "x", "45^\\circ"])
+def test_label_without_a_separated_unit_is_kept(label):
+    assert normalize_label(label) == normalize_label(label.replace(" ", ""))
+    assert normalize_label("4m") == "4m"
