@@ -272,8 +272,9 @@ def normalize_text(s: str) -> str:
     return "\n\n".join(p for p in (re.sub(r"\s+", " ", p).strip() for p in paragraphs) if p)
 
 
+_SEP = r"(?:\s|\\[ ,;:!]|~)"  # whitespace or a TeX spacing command
 _UNIT_RE = re.compile(
-    r"^(?P<value>.*?\S)(?:\s*\\(?:text|mathrm)\{\s*|\s+)"
+    rf"^(?P<value>.*?[^\s\\~])(?:{_SEP}*\\(?:text|mathrm)\{{\s*|{_SEP}+)"
     r"(?:in|ft|cm|mm|m|km|yd|mi|units?)\.?\s*\}?$"
 )
 

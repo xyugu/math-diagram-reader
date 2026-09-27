@@ -140,7 +140,8 @@ def test_ned():
 @pytest.mark.parametrize(
     ("label", "value"),
     [("6 ft", "6"), ("10 in.", "10"), ("8\\text{ cm}", "8"), ("2 \\mathrm{yd}", "2"),
-     ("3\\sqrt{2} cm", "3\\sqrt{2}"), ("12 units", "12"), ("2x + 1 cm", "2x+1")],
+     ("3\\sqrt{2} cm", "3\\sqrt{2}"), ("12 units", "12"), ("2x + 1 cm", "2x+1"),
+     ("6\\ \\mathrm{cm}", "6"), ("6\\,\\mathrm{in.}", "6"), ("6~ft", "6")],
 )  # fmt: skip
 def test_label_units_are_dropped(label, value):
     assert normalize_label(label) == value
