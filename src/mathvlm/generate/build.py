@@ -40,7 +40,7 @@ from mathvlm.augment import apply as apply_augment
 from mathvlm.augment import sample_params as sample_augment
 from mathvlm.config import get_config, sample_seed
 from mathvlm.generate.questions import compose, text_only_question
-from mathvlm.generate.realism import add_rays, hide_names, number_angles
+from mathvlm.generate.realism import add_rays, densify_labels, hide_names, number_angles
 from mathvlm.generate.scenes import BUILDERS, Namer, chance, to_grid, validate_scene, wpick
 from mathvlm.render import RenderStyle, contact_sheet, render_page, sample_style
 from mathvlm.schema import (
@@ -132,6 +132,7 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
             text = ""
             real_meta["diagram_only"] = True
             real_meta["numbered_angles"] = number_angles(diagram, rng_real, rcfg)
+            real_meta["dense_labels"] = densify_labels(diagram, rng_real, rcfg)
             real_meta["hidden_names"] = hide_names(diagram, rng_real, rcfg)
             # with the question gone, only the givens written on the figure remain
             real_meta["givens"] = [{**g, "in_text": False}

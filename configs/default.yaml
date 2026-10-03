@@ -137,6 +137,12 @@ generate:
     hide_some_prob: 0.5 # per point, for "some"
     numbered_angles_prob: 0.4 # number the angles around one vertex (figure-only pages)
     numbered_min_deg: 25.0 # narrower sectors are not numbered
+    # figure-only pages: value labels as dense as real figures (generate/realism.py)
+    dense_labels_prob: 0.6
+    max_extra_lengths: 3 # pieces of segments, split at the points on them
+    units_prob: 0.25 # length labels with a unit, e.g. 6\text{ cm}
+    units: ["cm", "in.", "ft", "m", "units"]
+    arc_label_prob: 0.5 # per circle: label one arc with its measure
 
 eval:
   # similarity alignment for the geometry metric: translation + uniform scale only.

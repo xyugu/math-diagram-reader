@@ -130,6 +130,11 @@ class RealismConfig(_Base):
     hide_some_prob: float
     numbered_angles_prob: float
     numbered_min_deg: float
+    dense_labels_prob: float
+    max_extra_lengths: int
+    units_prob: float
+    units: list[str]
+    arc_label_prob: float
 
 
 class GenerateConfig(_Base):

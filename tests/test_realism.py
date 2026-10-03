@@ -171,3 +171,75 @@ def test_figure_only_page_renders_without_a_text_block(samples):
     page = render_page(s.transcription, s.style)
     assert page.panel_box is not None
     assert page.panel_box[1] < 0.6 * page.image.height  # the panel starts near the top
+
+
+# ---------------------------------------------------------------------------
+# Dense value labels
+# ---------------------------------------------------------------------------
+
+DENSE = RC.model_copy(update={"dense_labels_prob": 1.0, "max_extra_lengths": 3,
+                              "units_prob": 0.0, "arc_label_prob": 1.0})  # fmt: skip
+
+# AB with M on it (AM = 30, MB = 50), a ray from M up to C; circle O through P, Q, R.
+SPLIT = {
+    "points": {"A": [10, 50], "M": [40, 50], "B": [90, 50], "C": [40, 10],
+               "O": [70, 80], "P": [85, 80], "Q": [70, 65], "R": [55, 80]},
+    "segments": [["A", "B"], ["M", "C"]],
+    "circles": [{"center": "O", "radius": 15}],
+    "marks": [], "labels": [],
+}  # fmt: skip
+
+
+def split_diagram() -> dict:
+    import copy
+
+    return copy.deepcopy(SPLIT)
+
+
+def test_dense_lengths_go_on_pieces_in_one_scale():
+    d = split_diagram()
+    added = R.densify_labels(d, rng(4), DENSE)
+    lengths = {frozenset(lb["on"]): float(lb["text"]) for lb in d["labels"] if "on" in lb}
+    assert added["lengths"] == len(lengths) >= 1
+    assert frozenset("AB") not in lengths  # a split segment is labeled piece by piece
+    if {frozenset("AM"), frozenset("MB")} <= set(lengths):
+        assert lengths[frozenset("MB")] / lengths[frozenset("AM")] == pytest.approx(
+            50 / 30, rel=0.06
+        )
+    t = S.validate_output({"text": "", "diagram": d})
+    assert t.ok and S.consistency_issues(t.value.diagram) == []
+
+
+def test_dense_angles_cover_the_sectors_at_one_vertex():
+    d = split_diagram()
+    R.densify_labels(d, np.random.default_rng(0), DENSE.model_copy(update={"max_extra_lengths": 1}))
+    angles = [lb for lb in d["labels"] if "angle" in lb]
+    if angles:  # chance(0.7) to label a vertex
+        assert {lb["angle"][1] for lb in angles} == {"M"}  # the only vertex with 3 rays
+        values = sorted(int(lb["text"].split("^")[0]) for lb in angles if lb["text"][0] != "x")
+        assert all(v == 90 for v in values)  # MC is perpendicular to AB
+
+
+def test_dense_arc_label_is_the_central_angle():
+    d = split_diagram()
+    added = R.densify_labels(d, rng(1), DENSE)
+    arcs = [lb for lb in d["labels"] if "arc" in lb]
+    assert added["arcs"] == len(arcs) == 1
+    assert arcs[0]["text"] == "90^\\circ"  # neighbours on the circle are a quarter apart
+
+
+def test_dense_units_are_text_that_the_metric_ignores():
+    from mathvlm.eval.normalize import normalize_label
+
+    d = split_diagram()
+    R.densify_labels(d, rng(4), DENSE.model_copy(update={"units_prob": 1.0, "units": ["cm"]}))
+    texts = [lb["text"] for lb in d["labels"] if "on" in lb]
+    assert texts and all(t.endswith("\\text{ cm}") for t in texts)
+    assert all(normalize_label(t) == t.split("\\text")[0] for t in texts)
+
+
+def test_dense_labels_can_be_off():
+    d = split_diagram()
+    off = DENSE.model_copy(update={"dense_labels_prob": 0.0})
+    assert R.densify_labels(d, rng(0), off) == {"lengths": 0, "angles": 0, "arcs": 0}
+    assert d["labels"] == []

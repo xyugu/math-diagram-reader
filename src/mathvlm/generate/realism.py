@@ -11,8 +11,12 @@ intersection. These functions add those to a generated sample:
 - ``number_angles`` (grid diagram): labels the sectors around a vertex where three or
   more rays meet ``1, 2, ...``, at vertices that carry no other angle label or arc.
 - ``hide_names`` (grid diagram): turns labeled points into unlabeled ``_P`` points.
+- ``densify_labels`` (grid diagram): value labels as dense as real figures put them:
+  pieces of a segment split by an interior point, several sectors around one vertex,
+  arcs of a circle, sometimes with a unit (``6\\text{ cm}``). Values are measured from
+  the figure, so they agree with it.
 
-The last two apply to diagram-only pages only, where no question text mentions a point
+The last three apply to diagram-only pages only, where no question text mentions a point
 or an angle. All draws come from the sample's own realism RNG stream (build.py), so the
 scene, text, style and augmentation draws are unaffected.
 """
@@ -181,3 +185,100 @@ def hide_names(d: dict, rng: np.random.Generator, cfg: RealismConfig) -> str:
     mapping = {n: f"{UNNAMED_PREFIX}{1000 + i}" for i, n in enumerate(hidden)}
     d.update(rename_points(d, lambda n: mapping.get(n, n)))
     return mode
+
+
+# ---------------------------------------------------------------------------
+# Dense value labels (diagram-only pages)
+# ---------------------------------------------------------------------------
+
+
+def _label_targets(d: dict) -> set:
+    out = set()
+    for lb in d["labels"]:
+        if "on" in lb:
+            out.add(("on", frozenset(lb["on"])))
+        elif "angle" in lb:
+            a = lb["angle"]
+            out.add(("angle", a[1], frozenset((a[0], a[2]))))
+        elif "arc" in lb:
+            out.add(("arc", frozenset(lb["arc"])))
+    return out
+
+
+def _pieces(d: dict, tol: float = 1.0) -> list[tuple[str, str]]:
+    """Every drawn segment split at the points on it: consecutive pairs along it."""
+    P = {k: (float(x), float(y)) for k, (x, y) in d["points"].items()}
+    out = []
+    for a, b in d["segments"]:
+        on = [n for n in P if n not in (a, b) and G.dist_point_segment(P[n], P[a], P[b]) <= tol]
+        chain = [a, *sorted(on, key=lambda n: G.dist(P[a], P[n])), b]
+        out += list(zip(chain, chain[1:], strict=False))
+    return out
+
+
+def densify_labels(d: dict, rng: np.random.Generator, cfg: RealismConfig) -> dict[str, int]:
+    """Add measured value labels to a diagram-only page. Returns counts by kind."""
+    added = {"lengths": 0, "angles": 0, "arcs": 0}
+    if not chance(rng, cfg.dense_labels_prob):
+        return added
+    P = {k: (float(x), float(y)) for k, (x, y) in d["points"].items()}
+    taken = _label_targets(d)
+    tips = {m["at"] for m in d["marks"] if m["type"] == "arrow"}
+
+    # lengths, in one consistent unit scale (the longest drawn piece maps into 6..24)
+    pieces = [p for p in _pieces(d) if not (set(p) & tips) and G.dist(P[p[0]], P[p[1]]) >= 8]
+    if pieces:
+        scale = float(rng.uniform(6, 24)) / max(G.dist(P[a], P[b]) for a, b in pieces)
+        decimals = 1 if chance(rng, 0.2) else 0
+        unit = cfg.units[int(rng.integers(len(cfg.units)))] if chance(rng, cfg.units_prob) else ""
+        want = int(rng.integers(1, cfg.max_extra_lengths + 1))
+        for i in rng.permutation(len(pieces)):
+            if added["lengths"] >= want:
+                break
+            a, b = pieces[int(i)]
+            if ("on", frozenset((a, b))) in taken:
+                continue
+            value = round(G.dist(P[a], P[b]) * scale, decimals)
+            text = f"{value:g}" + (f"\\text{{ {unit}}}" if unit else "")
+            d["labels"].append({"on": [a, b], "text": text})
+            taken.add(("on", frozenset((a, b))))
+            added["lengths"] += 1
+
+    # every sector around one free vertex, in degrees (they add up as the figure does)
+    busy = {lb["angle"][1] for lb in d["labels"] if "angle" in lb}
+    busy |= {a[1] for m in d["marks"] if m["type"] == "equal_angle" for a in m["angles"]}
+    busy |= {m["at"] for m in d["marks"] if m["type"] == "right_angle"}
+    vertices = [v for v in sorted(d["points"]) if v not in busy and len(_rays_at(d, v)) >= 3]
+    if vertices and chance(rng, 0.7):
+        v = vertices[int(rng.integers(len(vertices)))]
+        rays = _rays_at(d, v)
+        for k in range(len(rays)):
+            (t1, p1), (t2, p2) = rays[k], rays[(k + 1) % len(rays)]
+            width = math.degrees((t2 - t1) % (2 * math.pi))
+            if not (cfg.numbered_min_deg <= width <= 179) or p1 == p2:
+                continue
+            text = "x^\\circ" if chance(rng, 0.15) else f"{round(width)}^\\circ"
+            d["labels"].append({"angle": [p1, v, p2], "text": text})
+            added["angles"] += 1
+
+    # one arc per circle, between neighbouring points on it, with its measure
+    for c in d["circles"]:
+        if not chance(rng, cfg.arc_label_prob):
+            continue
+        o, r = P[c["center"]], float(c["radius"])
+        on = sorted((n for n in P if n != c["center"] and abs(G.dist(P[n], o) - r) <= 1.5),
+                    key=lambda n: math.atan2(P[n][1] - o[1], P[n][0] - o[0]))  # fmt: skip
+        arcs = []
+        for k in range(len(on)):
+            a, b = on[k], on[(k + 1) % len(on)]
+            if a == b or ("arc", frozenset((a, b))) in taken:
+                continue
+            deg = G.angle_deg(P[a], o, P[b])
+            if 30 <= deg <= 170:
+                arcs.append((a, b, deg))
+        if arcs:
+            a, b, deg = arcs[int(rng.integers(len(arcs)))]
+            d["labels"].append({"arc": [a, b], "text": f"{round(deg)}^\\circ"})
+            taken.add(("arc", frozenset((a, b))))
+            added["arcs"] += 1
+    return added
