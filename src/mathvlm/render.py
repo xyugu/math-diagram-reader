@@ -22,7 +22,8 @@ Drawing conventions
   at 4). Ticks rather than concentric arcs, because the two halves of a bisected
   angle share a ray and their arcs would otherwise merge into one.
 - angle labels: text inside the angle on its bisector, over a single arc when
-  ``style.angle_arcs`` is set (and the angle has no equal_angle arcs already).
+  ``style.angle_arcs`` is set (and the angle has no equal_angle arcs already, and its
+  vertex carries fewer than three angle labels).
 - point labels: placed in the widest free direction around the point, biased away
   from the figure's centroid. Unlabeled ``_P`` points get no label.
 - arrow: a filled arrowhead with its tip at the point, pointing away from ``from``;
@@ -45,6 +46,7 @@ from __future__ import annotations
 import argparse
 import math
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
@@ -535,6 +537,10 @@ class _Painter:
     def draw_angle_labels(self) -> None:
         fs = self.s.label_fontsize
         margin = 0.35 * self.s.mark_size
+        # three or more labeled angles at one vertex (numbered angles at a crossing): no
+        # arcs there, as textbooks draw it; the arcs would merge into a circle
+        per_vertex = Counter(lb.angle[1] for lb in self.d.labels if isinstance(lb, AngleLabel))
+        crowded = {v for v, n in per_vertex.items() if n >= 3}
         for lb in self.d.labels:
             if not isinstance(lb, AngleLabel):
                 continue
@@ -548,7 +554,7 @@ class _Painter:
             u1, u2 = _unit(*_sub(e1, v)), _unit(*_sub(e2, v))
             key = canonical_angle(a)
             r_arc = self.arc_radius.get(key)
-            if r_arc is None and self.s.angle_arcs:
+            if r_arc is None and self.s.angle_arcs and a[1] not in crowded:
                 r_arc = self._arc_radius(v, e1, e2, min_arc_len=1.2 * self.s.mark_size)
                 self.arc(v, _ang(u1), _ang(u2), r_arc)
             r_arc = r_arc or 0.0

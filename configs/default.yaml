@@ -99,6 +99,7 @@ generate:
     circle_circumcircle: 1.0
     quadrilateral_diagonals: 1.0
     tangent_line: 1.0
+    line_crossings: 1.0 # lines only, figure-only pages (17% of PGDP5K val is line figures)
   no_diagram_fraction: 0.15 # share of samples with "diagram": null
   # geometric validity thresholds, enforced at generation time
   min_angle_deg: 25.0

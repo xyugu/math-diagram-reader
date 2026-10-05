@@ -39,7 +39,7 @@ from mathvlm.augment import AugmentParams
 from mathvlm.augment import apply as apply_augment
 from mathvlm.augment import sample_params as sample_augment
 from mathvlm.config import get_config, sample_seed
-from mathvlm.generate.questions import compose, text_only_question
+from mathvlm.generate.questions import Composed, compose, text_only_question
 from mathvlm.generate.realism import add_rays, densify_labels, hide_names, number_angles
 from mathvlm.generate.scenes import BUILDERS, Namer, chance, to_grid, validate_scene, wpick
 from mathvlm.render import RenderStyle, contact_sheet, render_page, sample_style
@@ -118,7 +118,8 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
         if problems:
             rejections[problems[0].split(" ")[0]] += 1
             continue
-        composed = compose(scene, rng_text, gcfg)
+        composed = (Composed("", [], {"givens": []}) if scene.figure_only
+                    else compose(scene, rng_text, gcfg))  # fmt: skip
         diagram = {
             "points": {k: [int(x), int(y)] for k, (x, y) in scene.points.items()},
             "segments": [list(s) for s in scene.segments],
@@ -128,7 +129,8 @@ def make_sample(master_seed: int, split: str, index: int) -> Sample:
         }
         text = composed.text
         real_meta: dict = {"rays": n_rays, "diagram_only": False}
-        if chance(rng_real, rcfg.diagram_only_prob):  # the figure alone, as in PGDP5K
+        figure_only = chance(rng_real, rcfg.diagram_only_prob) or scene.figure_only
+        if figure_only:  # the figure alone, as in PGDP5K
             text = ""
             real_meta["diagram_only"] = True
             real_meta["numbered_angles"] = number_angles(diagram, rng_real, rcfg)

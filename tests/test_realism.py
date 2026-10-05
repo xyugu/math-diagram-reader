@@ -144,15 +144,20 @@ def samples():
 
 def test_generated_mix_follows_the_config(samples):
     diag = [s for s in samples if s.family != "no_diagram"]
+    # families with a question of their own become figure-only pages at the configured rate
+    questions = [s for s in diag if s.family != "line_crossings"]
+    assert abs(sum(s.meta["diagram_only"] for s in questions) / len(questions)
+               - RC.diagram_only_prob) < 0.1  # fmt: skip
     only = [s for s in diag if s.meta["diagram_only"]]
-    assert abs(len(only) / len(diag) - RC.diagram_only_prob) < 0.1
     assert all(s.transcription.text == "" for s in only)
     assert all(s.transcription.text for s in diag if not s.meta["diagram_only"])
     rays = [s for s in diag if s.meta["rays"]]
     assert 0.15 < len(rays) / len(diag) < RC.ray_prob + 0.1
     for s in rays:
         arrows = [m for m in s.transcription.diagram.marks if isinstance(m, S.ArrowMark)]
-        assert len(arrows) == s.meta["rays"] and all(S.is_unnamed(m.at) for m in arrows)
+        own = s.family == "line_crossings"  # lines end in arrowheads of their own
+        assert (len(arrows) >= s.meta["rays"]) if own else (len(arrows) == s.meta["rays"])
+        assert all(S.is_unnamed(m.at) for m in arrows)
     hidden = collections.Counter(s.meta["hidden_names"] for s in only)
     assert set(hidden) <= set(RC.hide_names) and hidden["all"] > 0
 
@@ -243,3 +248,42 @@ def test_dense_labels_can_be_off():
     off = DENSE.model_copy(update={"dense_labels_prob": 0.0})
     assert R.densify_labels(d, rng(0), off) == {"lengths": 0, "angles": 0, "arcs": 0}
     assert d["labels"] == []
+
+
+# ---------------------------------------------------------------------------
+# Line-only figures
+# ---------------------------------------------------------------------------
+
+
+def test_line_crossings_are_figure_only_pages_of_lines():
+    from mathvlm.generate.scenes import line_crossings
+
+    gcfg = get_config().generate
+    kinds = collections.Counter()
+    for i in range(40):
+        sc = line_crossings(
+            np.random.default_rng(i), Namer(np.random.default_rng(100 + i), gcfg), gcfg
+        )
+        kinds[sc.kind] += 1
+        assert sc.figure_only and not sc.circles and not sc.polygon
+        # every intersection lies on at least two lines, and every arrow points outward
+        meets = collections.Counter(p for p, _ in sc.on_segment)
+        assert meets and all(n >= 2 for n in meets.values()) or sc.kind == "crossing"
+        for m in (m for m in sc.marks if m["type"] == "arrow"):
+            tip, base = np.array(sc.points[m["at"]]), np.array(sc.points[m["from"]])
+            assert np.linalg.norm(tip - base) > 0.3
+        if sc.kind == "parallel":
+            (a, b), (c, d) = sc.segments[-3:-1] if len(sc.segments) == 3 else sc.segments[-4:-2]
+            u, w = np.subtract(sc.points[b], sc.points[a]), np.subtract(sc.points[d], sc.points[c])
+            assert abs(u[0] * w[1] - u[1] * w[0]) < 1e-9  # the two lines are parallel
+    assert set(kinds) == {"crossing", "parallel"}
+
+
+def test_generated_line_figures_have_no_text(samples):
+    lines = [s for s in samples if s.family == "line_crossings"]
+    assert lines
+    for s in lines:
+        assert s.transcription.text == "" and s.meta["diagram_only"]
+        assert any(isinstance(m, S.ArrowMark) for m in s.transcription.diagram.marks) or any(
+            not S.is_unnamed(n) for n in s.transcription.diagram.points
+        )

@@ -441,3 +441,27 @@ def test_disabling_color_gives_one_ink(monkeypatch):
     for i in range(30):
         s = R.sample_style(sample_rng(0, "nocolor", i))
         assert s.line_ink == s.mark_ink == s.label_ink == s.ink
+
+
+def test_no_arcs_at_a_vertex_with_three_or_more_angle_labels():
+    x = {"points": {"A": [10, 10], "B": [90, 90], "C": [10, 90], "D": [90, 10], "E": [50, 50]},
+         "segments": [["A", "B"], ["C", "D"]]}  # fmt: skip
+    numbered = {**x, "labels": [{"angle": a, "text": str(k + 1)} for k, a in enumerate(
+        (["A", "E", "D"], ["D", "E", "B"], ["B", "E", "C"], ["C", "E", "A"]))]}  # fmt: skip
+    two = {**x, "labels": numbered["labels"][:2]}
+
+    def arcs(obj) -> int:
+        style = R.default_style()  # angle_arcs on
+        with R._rc(style):
+            fig = Figure(figsize=(RC.figure_width_in,) * 2, dpi=RC.dpi)
+            FigureCanvasAgg(fig)
+            ax = fig.add_axes((0, 0, 1, 1))
+            R._setup_axes(ax)
+            p = R._Painter(ax, diagram(obj), style, RC.figure_width_in)
+            calls = []
+            p.arc = lambda *a, **k: calls.append(a)
+            p.draw_angle_labels()
+        return len(calls)
+
+    assert arcs(numbered) == 0
+    assert arcs(two) == 2

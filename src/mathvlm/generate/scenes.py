@@ -141,6 +141,8 @@ class Scene:
     polygon: tuple[str, ...] = ()
     on_segment: set[tuple[str, frozenset]] = field(default_factory=set)
     on_circle: set[tuple[str, str]] = field(default_factory=set)
+    # a figure with no question of its own: always a figure-only page (build.py)
+    figure_only: bool = False
 
     def add_segment(self, a: str, b: str) -> None:
         if frozenset((a, b)) not in {frozenset(s) for s in self.segments}:
@@ -547,12 +549,94 @@ def tangent_line(rng, namer: Namer, cfg: GenerateConfig) -> Scene:
     return sc
 
 
+# ---------------------------------------------------------------------------
+# Lines only
+# ---------------------------------------------------------------------------
+
+
+def _line(
+    sc: Scene, rng, namer: Namer, cfg: GenerateConfig, a: Vec, b: Vec, inner: list[str]
+) -> tuple[str, str]:
+    """A line from a to b through the points ``inner`` (already placed, in order from a):
+    each end is an arrow tip (unlabeled) or, now and then, a labeled point."""
+    ends = []
+    for p, nearest in ((a, inner[0]), (b, inner[-1])):
+        if chance(rng, 0.8):
+            name = namer.unnamed()
+            sc.marks.append({"type": "arrow", "at": name, "from": nearest})
+        else:
+            name = namer.point()
+        sc.points[name] = p
+        ends.append(name)
+    sc.segments.append((ends[0], ends[1]))
+    for n in inner:
+        sc.on_segment.add((n, frozenset(ends)))
+    return ends[0], ends[1]
+
+
+def line_crossings(rng, namer: Namer, cfg: GenerateConfig) -> Scene:
+    """Lines and nothing else, as textbooks draw them for angle-pair problems: two or
+    three lines through one point, or two parallel lines cut by one or two transversals.
+    Every line runs past its last intersection into arrowheads; intersections are named
+    or left unlabeled. Figure-only (as in PGDP5K): the labels come from
+    ``realism.number_angles`` and ``realism.densify_labels``."""
+    variant = wpick(rng, ("crossing", "parallel"), (0.4, 0.6))
+    sc = Scene("line_crossings", variant, figure_only=True)
+
+    def meet(preferred=("O", "P", "E")) -> str:
+        return namer.point(preferred) if chance(rng, 0.5) else namer.unnamed()
+
+    if variant == "crossing":
+        o = (0.0, 0.0)
+        O = meet()
+        sc.points[O] = o
+        n_lines = 3 if chance(rng, 0.35) else 2
+        thetas = [float(rng.uniform(0, math.pi))]
+        while len(thetas) < n_lines:
+            t = float(rng.uniform(0, math.pi))
+            if all(min(abs(t - s), math.pi - abs(t - s)) >= math.radians(35) for s in thetas):
+                thetas.append(t)
+        for t in thetas:
+            u = (math.cos(t), math.sin(t))
+            a = G.mul(u, -float(rng.uniform(1.0, 1.6)))
+            b = G.mul(u, float(rng.uniform(1.0, 1.6)))
+            _line(sc, rng, namer, cfg, a, b, [O])
+        return sc
+
+    h = float(rng.uniform(0.8, 1.4))
+    n_trans = 2 if chance(rng, 0.3) else 1
+    cuts: list[tuple[str, str, float, float]] = []  # (on line 1, on line 2, x1, x2)
+    for k in range(n_trans):
+        phi = math.radians(float(rng.uniform(40, 140)))
+        x1 = float(rng.uniform(-0.3, 0.3)) + 1.4 * k
+        x2 = x1 + h / math.tan(phi)
+        p1, p2 = meet(), meet()
+        sc.points[p1], sc.points[p2] = (x1, 0.0), (x2, h)
+        cuts.append((p1, p2, x1, x2))
+    lines = []
+    for row, y in ((0, 0.0), (1, h)):
+        xs = [c[2 + row] for c in cuts]
+        inner = [c[row] for c in sorted(cuts, key=lambda c: c[2 + row])]
+        lo = min(xs) - float(rng.uniform(0.5, 0.9))
+        hi = max(xs) + float(rng.uniform(0.5, 0.9))
+        lines.append(_line(sc, rng, namer, cfg, (lo, y), (hi, y), inner))
+    for p1, p2, x1, x2 in cuts:
+        u = G.sub((x2, h), (x1, 0.0))
+        u = G.mul(u, 1.0 / G.norm(u))
+        a = G.sub((x1, 0.0), G.mul(u, float(rng.uniform(0.4, 0.7))))
+        b = G.add((x2, h), G.mul(u, float(rng.uniform(0.4, 0.7))))
+        _line(sc, rng, namer, cfg, a, b, [p1, p2])
+    sc.add_mark(rng, cfg, {"type": "parallel", "segments": [list(lines[0]), list(lines[1])]})
+    return sc
+
+
 BUILDERS = {
     "triangle_cevian": triangle_cevian,
     "circle_incircle": circle_incircle,
     "circle_circumcircle": circle_circumcircle,
     "quadrilateral_diagonals": quadrilateral_diagonals,
     "tangent_line": tangent_line,
+    "line_crossings": line_crossings,
 }
 
 
