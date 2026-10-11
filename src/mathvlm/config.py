@@ -135,6 +135,8 @@ class RealismConfig(_Base):
     units_prob: float
     units: list[str]
     arc_label_prob: float
+    line_names_prob: float
+    line_names: list[str]
 
 
 class GenerateConfig(_Base):

@@ -287,3 +287,21 @@ def test_generated_line_figures_have_no_text(samples):
         assert any(isinstance(m, S.ArrowMark) for m in s.transcription.diagram.marks) or any(
             not S.is_unnamed(n) for n in s.transcription.diagram.points
         )
+
+
+def test_line_names_go_on_lines_and_rays():
+    d = x_diagram()
+    d["points"].update({"F": [95, 95], "G": [5, 95]})
+    d["segments"] = [["A", "F"], ["C", "D"], ["G", "E"]]
+    d["marks"] = [
+        {"type": "arrow", "at": "F", "from": "E"},
+        {"type": "arrow", "at": "D", "from": "E"},
+    ]
+    cfg = RC.model_copy(update={"line_names_prob": 1.0})
+    assert R.name_lines(d, rng(0), cfg) == 2  # GE has no arrowhead: not a line or ray
+    names = [lb for lb in d["labels"] if "on" in lb]
+    assert {frozenset(lb["on"]) for lb in names} == {frozenset("AF"), frozenset("CD")}
+    assert len({lb["text"] for lb in names}) == 2 and all(
+        lb["text"] in cfg.line_names for lb in names
+    )
+    assert S.validate_output({"text": "", "diagram": d}).ok

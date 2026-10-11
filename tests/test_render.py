@@ -465,3 +465,17 @@ def test_no_arcs_at_a_vertex_with_three_or_more_angle_labels():
 
     assert arcs(numbered) == 0
     assert arcs(two) == 2
+
+
+def test_a_line_name_sits_near_the_arrowhead():
+    line = {"points": {"_P1": [10, 50], "M": [50, 50], "_P2": [90, 50]},
+            "segments": [["_P1", "_P2"]],
+            "marks": [{"type": "arrow", "at": "_P2", "from": "M"}],
+            "labels": [{"on": ["_P1", "_P2"], "text": "m"}]}  # fmt: skip
+    with_name = R.render_diagram(diagram(line), no_dots())
+    without = R.render_diagram(diagram({**line, "labels": []}), no_dots())
+    diff = np.abs(np.asarray(with_name, int) - np.asarray(without, int)).sum(axis=2) > 60
+    xs = np.nonzero(diff)[1]
+    tip_x = R.grid_to_pixel(90, 50, (0, 0, with_name.width))[0]
+    mid_x = R.grid_to_pixel(50, 50, (0, 0, with_name.width))[0]
+    assert xs.mean() > (mid_x + tip_x) / 2  # in the half next to the arrowhead

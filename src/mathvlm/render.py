@@ -27,7 +27,8 @@ Drawing conventions
 - point labels: placed in the widest free direction around the point, biased away
   from the figure's centroid. Unlabeled ``_P`` points get no label.
 - arrow: a filled arrowhead with its tip at the point, pointing away from ``from``;
-  the point gets no dot.
+  the point gets no dot. A label on a segment that ends in an arrowhead (a line's name)
+  sits near the arrowhead.
 - arc labels: outside the circle, on the radius through the minor arc's midpoint.
 - free text: centered on its grid position.
 
@@ -596,7 +597,13 @@ class _Painter:
             obstacles = others + [c for c in deco_centers if not own or c != (
                 (pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2)]  # fmt: skip
             mid = ((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2)
-            for t in (0.5, 0.35, 0.65, 0.25, 0.75):  # slide along the segment if crowded
+            slide = (0.5, 0.35, 0.65, 0.25, 0.75)
+            if lb.on[1] in self.arrow_tips or lb.on[0] in self.arrow_tips:
+                # a line's name sits near its arrowhead, as textbooks put it
+                tip_at_b = lb.on[1] in self.arrow_tips
+                slide = tuple(t if tip_at_b else 1 - t for t in (0.86, 0.78, 0.7, 0.62))
+                mid = (pa[0] + (pb[0] - pa[0]) * slide[0], pa[1] + (pb[1] - pa[1]) * slide[0])
+            for t in slide:  # slide along the segment if crowded
                 cand = (pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t)
                 if all(math.dist(cand, o) >= clear for o in obstacles):
                     mid = cand

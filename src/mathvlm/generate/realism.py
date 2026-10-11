@@ -15,8 +15,10 @@ intersection. These functions add those to a generated sample:
   pieces of a segment split by an interior point, several sectors around one vertex,
   arcs of a circle, sometimes with a unit (``6\\text{ cm}``). Values are measured from
   the figure, so they agree with it.
+- ``name_lines`` (grid diagram): lowercase line names (``m``, ``n``, ``\\ell``) on lines and
+  rays, as a label on the whole drawn line (how the PGDP5K converter records them).
 
-The last three apply to diagram-only pages only, where no question text mentions a point
+The last four apply to diagram-only pages only, where no question text mentions a point
 or an angle. All draws come from the sample's own realism RNG stream (build.py), so the
 scene, text, style and augmentation draws are unaffected.
 """
@@ -282,3 +284,28 @@ def densify_labels(d: dict, rng: np.random.Generator, cfg: RealismConfig) -> dic
             taken.add(("arc", frozenset((a, b))))
             added["arcs"] += 1
     return added
+
+
+# ---------------------------------------------------------------------------
+# Line names (diagram-only pages)
+# ---------------------------------------------------------------------------
+
+
+def name_lines(d: dict, rng: np.random.Generator, cfg: RealismConfig) -> int:
+    """Name up to three lines or rays (drawn segments with an arrowhead) with distinct
+    lowercase names. Returns how many were named."""
+    if not chance(rng, cfg.line_names_prob):
+        return 0
+    tips = {m["at"] for m in d["marks"] if m["type"] == "arrow"}
+    taken = _label_targets(d)
+    lines = [(a, b) for a, b in d["segments"]
+             if ({a, b} & tips) and ("on", frozenset((a, b))) not in taken]  # fmt: skip
+    if not lines:
+        return 0
+    names = list(cfg.line_names)
+    order = rng.permutation(len(lines))[: min(3, len(lines), len(names))]
+    picked = rng.permutation(len(names))
+    for k, i in enumerate(order):
+        a, b = lines[int(i)]
+        d["labels"].append({"on": [a, b], "text": names[int(picked[k])]})
+    return len(order)

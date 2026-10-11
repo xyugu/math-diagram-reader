@@ -194,12 +194,17 @@ def test_text_renders_and_names_only_labeled_points():
             assert nm in d.points, (s.id, nm, t)
 
 
+LINE_NAMES = set(get_config().generate.realism.line_names)
+
+
 def test_labels_parse_and_never_sit_on_a_segment_with_an_interior_point():
     for s in diagram_samples():
         d = s.transcription.diagram
         for lb in d.labels:
             PARSER.parse(f"${lb.text}$")
-            if isinstance(lb, S.SegmentLabel):
+            # a length on a split segment would be ambiguous; a line's name is not: it
+            # names the whole line, interior points and all
+            if isinstance(lb, S.SegmentLabel) and lb.text not in LINE_NAMES:
                 a, b = (d.points[n] for n in lb.on)
                 for n, p in d.points.items():
                     if n in lb.on:
