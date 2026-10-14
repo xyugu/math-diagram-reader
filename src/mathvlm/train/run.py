@@ -104,7 +104,7 @@ def _versions() -> dict[str, str | None]:
     return out
 
 
-def train(cfg: Config, args: argparse.Namespace) -> Path:
+def train(cfg: Config, args: argparse.Namespace, git: dict) -> Path:
     import torch  # noqa: I001 -- unsloth must be imported before trl and transformers
     from unsloth import FastVisionModel
     from transformers import TrainerCallback, set_seed
@@ -115,7 +115,6 @@ def train(cfg: Config, args: argparse.Namespace) -> Path:
 
     tc = cfg.train
     ov = tc.overfit
-    git = _git()  # the code that trains, not whatever is checked out when it finishes
     out = cfg.paths.resolved("outputs_dir") / "train" / args.name
     adapter_dir = out / "adapter"
     if adapter_dir.exists() and not (args.resume or args.overwrite):
@@ -277,8 +276,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--resume", action="store_true", help="continue from the last checkpoint")
     ap.add_argument("--overwrite", action="store_true", help="replace an existing run's adapter")
     args = ap.parse_args(argv)
+    # the code that trains: taken before the slow imports, so later edits can't leak in
+    git = _git()
     _env(cfg)
-    adapter = train(cfg, args)
+    adapter = train(cfg, args, git)
     split = args.train_split if args.overfit else args.val_split
     print(f"next: uv run python -m mathvlm.infer --split {split} --adapter {adapter}")
     return 0
