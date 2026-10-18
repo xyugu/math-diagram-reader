@@ -70,15 +70,15 @@ labels ignored); synthetic scores are unchanged by it, PGDP5K labels rose ~0.04-
 (`generate/realism.py`: rays with arrowheads, figure-only pages, hidden point names,
 numbered angles; textbook colors and small screenshots), `outputs/train/sft_v2/`.
 
-| Metric | Zero-shot | sft20k | sft_v2 |
-|--------|-----------|--------|--------|
-| JSON parse rate / schema valid rate | 90.0% / 88.4% | 95.0% / 55.4% | 99.8% / 84.8% |
-| Diagram detection accuracy | 1.0% | 94.2% | 99.6% |
-| Text exact (`""`) | 0% | 0% | 99.4% |
-| Structure F1, all samples (strict) | 0.000 | 0.489 | 0.679 |
-| F1 points / segments / marks / labels | 0 / 0 / 0 / 0 | 0.59 / 0.49 / 0.29 / 0.33 | 0.84 / 0.64 / 0.42 / 0.51 |
-| Mean per-diagram F1: lettered (291) / no letters (209) | - | 0.67 / 0.02 | 0.76 / 0.48 |
-| Point error, mean / median (grid units) | n/a | 5.18 / 2.46 | 5.83 / 2.68 |
+| Metric | Zero-shot | sft20k | sft_v2 | sft_v3 |
+|--------|-----------|--------|--------|--------|
+| JSON parse rate / schema valid rate | 90.0% / 88.4% | 95.0% / 55.4% | 99.8% / 84.8% | 99.8% / 88.0% |
+| Diagram detection accuracy | 1.0% | 94.2% | 99.6% | 99.8% |
+| Text exact (`""`) | 0% | 0% | 99.4% | 99.4% |
+| Structure F1, all samples (strict) | 0.000 | 0.489 | 0.679 | 0.696 |
+| F1 points / segments / marks / labels | 0 / 0 / 0 / 0 | 0.59 / 0.49 / 0.29 / 0.33 | 0.84 / 0.64 / 0.42 / 0.51 | 0.86 / 0.66 / 0.43 / 0.51 |
+| Mean per-diagram F1: lettered (291) / no letters (209) | - | 0.67 / 0.02 | 0.77 / 0.50 | 0.78 / 0.55 |
+| Point error, mean / median (grid units) | n/a | 5.18 / 2.46 | 5.83 / 2.68 | 6.11 / 2.95 |
 
 On the synthetic val split `sft_v2` holds `sft20k`'s scores (structure F1 0.984 vs 0.989,
 point error median 1.51 vs 1.51), and on `val_v2` (realism generator) it scores 0.922 vs
@@ -94,9 +94,12 @@ point precision on real images, line-only figures (17% of PGDP5K) and arc labels
 Checkpoint (2026-10-26, branch `phase3-realism`): the generator since `sft_v2` adds dense
 measured labels on figure-only pages (pieces of split segments, several sectors per vertex,
 arcs, units) and a line-only family (`line_crossings`). `train_v3`/`val_v3` (20k/200) are
-generated from `aa58051`; `sft_v3` is not trained yet:
+generated from `aa58051`, and `sft_v3` trained on them (structure F1 on the synthetic val
+split 0.988, no regression). Diminishing returns on real figures: labels stayed at 0.51 and
+point error rose a little. Lowercase point names (PGDP5K's line names `m`, `a`) still made 19
+of sft_v3's 59 invalid outputs; `train_v4`/`val_v4` (from `140dc81`) add line names:
 
-    uv run python -m mathvlm.train.run --name sft_v3 --train-split train_v3 --val-split val_v3
+    uv run python -m mathvlm.train.run --name sft_v4 --train-split train_v4 --val-split val_v4
 
 ## Design invariants
 
