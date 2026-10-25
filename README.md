@@ -101,9 +101,13 @@ of sft_v3's 59 invalid outputs; `train_v4`/`val_v4` (from `140dc81`) add line na
 `sft_v4` (trained from `a4a7e16`) removes those failures (0 left) and is the best model so
 far: structure F1 0.724 on PGDP5K val, 0.989 on the synthetic val split.
 
-Stopped here (2026-10-26). Not done yet: PGDP5K test (999 diagrams) is still unscored, to be
-used once for the final number; the remaining real-figure weaknesses are marks (F1 0.43,
-equal_angle almost never right), labels on the wrong target (0.56) and point precision.
+Final number, PGDP5K test (999 diagrams, scored once, with sft_v4): schema valid 90.3%,
+text exact 99.5%, structure F1 0.729 strict / 0.711 geometric (points 0.88, segments 0.69,
+circles 0.66, marks 0.46, labels 0.57), point error mean 5.90 / median 2.73. It matches val
+(0.724), so choosing models on val did not inflate the result.
+
+Stopped here (2026-10-26). The remaining real-figure weaknesses are marks (F1 0.46,
+equal_angle 0.15), labels on the wrong target (0.57) and point precision.
 
 ## Design invariants
 
