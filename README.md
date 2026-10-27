@@ -66,6 +66,14 @@ uv run python -m mathvlm.infer --split pgdp5k/val --adapter outputs/train/<run>/
 uv run --extra web python -m mathvlm.web.serve   # http://127.0.0.1:8000
 ```
 
+Every split was built with `--seed 0`; the CLI default (`seed: 1234` in `configs/default.yaml`)
+gives different data. Only the `*_v4` splits match the current generator. `train`, `val` and
+`test`, which the synthetic scores above use, come from earlier versions, so these commands no
+longer rebuild them exactly.
+
+Inference is reproducible only with the same batches: bf16 kernels are not batch-invariant, so
+`--limit` or a different `--batch` can change greedy outputs.
+
 ## Design invariants
 
 Hard rules; code comments refer to them by number. Changing one is a deliberate, documented
