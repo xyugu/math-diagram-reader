@@ -44,7 +44,6 @@ weaknesses: marks, labels on the wrong target, and point precision.
 ## Quickstart
 
 ```bash
-mkdir -p ~/.venvs/vlm_project && ln -s ~/.venvs/vlm_project .venv   # fresh clone: venv on ext4
 uv sync --extra train --extra web
 uv run python scripts/check_env.py    # CUDA + bf16 + model smoke test
 uv run pytest
@@ -61,7 +60,7 @@ uv run python -m mathvlm.train.run --name <run> --train-split train
 uv run python -m mathvlm.infer --split val --adapter outputs/train/<run>/adapter
 uv run python -m mathvlm.eval.run_eval --split val --pred outputs/infer/val/<run>/predictions.jsonl
 # real textbook diagrams (PGDP5K, 85 MB, eval only)
-uv run python -m mathvlm.real.pgdp5k --raw ~/vlm_data/raw/pgdp5k/extracted/PGDP5K --splits val test
+uv run python -m mathvlm.real.pgdp5k --raw <path-to>/PGDP5K --splits val test
 uv run python -m mathvlm.infer --split pgdp5k/val --adapter outputs/train/<run>/adapter
 # prediction viewer: outputs beside their inputs; drag points to fix a diagram
 uv run --extra web python -m mathvlm.web.serve   # http://127.0.0.1:8000
@@ -101,15 +100,16 @@ src/mathvlm/
   real/pgdp5k.py       PGDP5K -> our schema (eval only)
   web/                 prediction viewer; static/diagram.js ports render.py, change both together
 tests/                 pytest; test_metrics.py matters most
-data, outputs, .venv   symlinks to ext4 (gitignored)
+data/, outputs/        generated data and run outputs (gitignored)
 ```
 
 ## Environment
 
-- WSL2, RTX 5070 Ti (sm_120). `torch` must come from the `pytorch-cu130` index in
-  `pyproject.toml`.
-- The repo is on a slow 9p mount (`/mnt/e`), so data, outputs, the Hugging Face cache and the
-  venv live on ext4 behind symlinks. Never write datasets into the repo tree.
+- An NVIDIA GPU with CUDA 13 (developed on a 16 GB card). `torch` comes from the
+  `pytorch-cu130` index in `pyproject.toml`, which is needed for Blackwell (sm_120) GPUs.
+- If the repo sits on a slow filesystem (such as a Windows drive under WSL), keep `data/`,
+  `outputs/` and `.venv` on a fast local disk and symlink them into the repo. Never write
+  datasets into the repo tree.
 - Always `uv run`; never install into another environment.
 
 ## Conventions
