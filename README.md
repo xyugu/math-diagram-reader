@@ -125,3 +125,8 @@ data/, outputs/        generated data and run outputs (gitignored)
 - Ruff for lint and format, line length 100: `uv run ruff check . --fix && uv run ruff format .`
 - All tunables in `configs/default.yaml`, read through `mathvlm.config`; no magic numbers.
 - Commit after each completed unit of work, Conventional Commits style; never leave the tests red.
+
+## License
+
+MIT, see `LICENSE`. It covers this code only: PGDP5K and the Qwen3.5 weights keep their own
+licenses.
