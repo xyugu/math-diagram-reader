@@ -32,6 +32,15 @@ unlabeled, and pages have no question text. The realism generator (`generate/rea
 these, plus rays, numbered angles, dense labels, line names and textbook colors. Remaining
 weaknesses: marks, labels on the wrong target, and point precision.
 
+## Prediction viewer
+
+![The viewer: a PGDP5K test figure beside sft_v4's redrawn diagram](docs/viewer.png)
+
+A local web page (`mathvlm.web`, command below) shows each input beside the predicted diagram.
+Pick a run, filter and sort samples by score, and overlay the ground truth. To fix a prediction,
+drag its points or edit the JSON; every edit is checked against the schema. The result can be
+redrawn with the training renderer or downloaded. Nothing is saved on the server.
+
 ## Status
 
 | Phase | Scope | Status |
